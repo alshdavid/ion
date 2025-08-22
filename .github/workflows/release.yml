@@ -1,0 +1,202 @@
+name: Release
+
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+on:
+  push:
+    branches:
+      - "main"
+
+env:
+  PROJECT_NAME: ion
+  profile: release
+
+jobs:
+  vars:
+    name: "📋 Generate Variables"
+    runs-on: ubuntu-24.04
+    outputs:
+      NPM_VER: ${{ steps.tag.outputs.NPM_VER }}
+      GH_TAG: ${{ steps.tag.outputs.GH_TAG }}
+    steps:
+      - run: eval $(curl -sSf sh.davidalsh.com/nodejs.sh | sh)
+      - id: tag
+        run: |
+          GH_TAG="$(date -u +"v%Y.%m.%d.%H%M").${GITHUB_SHA::4}"
+          echo GH_TAG:$GH_TAG
+          echo "GH_TAG=$GH_TAG" >> "$GITHUB_OUTPUT"
+
+  test:
+    name: 🧪 Test
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: eval $(curl -sSf sh.davidalsh.com/just.sh | sh)
+      - run: eval $(curl -sSf sh.davidalsh.com/rust.sh | sh)
+      - run: just test
+
+  format:
+    name: 📝 Format
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: eval $(curl -sSf sh.davidalsh.com/just.sh | sh)
+      - run: eval $(curl -sSf sh.davidalsh.com/rust.sh | sh)
+      - run: just fmt
+
+  build_linux_amd64:
+    name: 🐥 Linux AMD64
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
+    container:
+      image: debian:12
+      env:
+        DEBIAN_FRONTEND: noninteractive
+    steps:
+      - uses: actions/checkout@v4
+      - run: apt-get update -y && apt-get install -y curl build-essential
+      - run: eval $(curl -sSf sh.davidalsh.com/just.sh | sh)
+      - run: eval $(curl -sSf sh.davidalsh.com/rust.sh | sh)
+      - run: just build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ion-linux-amd64
+          path: ${{ github.workspace }}/target/linux-amd64/release/**/*
+          if-no-files-found: error
+          retention-days: 1
+
+  build_linux_arm64:
+    name: 🐥 Linux ARM64
+    runs-on: ubuntu-24.04-arm
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
+    container:
+      image: debian:12
+      env:
+        DEBIAN_FRONTEND: noninteractive
+    steps:
+      - uses: actions/checkout@v4
+      - run: apt-get update -y && apt-get install -y curl build-essential
+      - run: eval $(curl -sSf sh.davidalsh.com/just.sh | sh)
+      - run: eval $(curl -sSf sh.davidalsh.com/rust.sh | sh)
+      - run: just build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ion-linux-arm64
+          path: ${{ github.workspace }}/target/linux-arm64/release/**/*
+          if-no-files-found: error
+          retention-days: 1
+
+  build_macos_amd64:
+    name: 🍎 MacOS AMD64
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+      - run: eval $(curl -sSf sh.davidalsh.com/just.sh | sh)
+      - run: eval $(curl -sSf sh.davidalsh.com/rust.sh | sh)
+      - run: just build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ion-macos-amd64
+          path: ${{ github.workspace }}/target/macos-amd64/release/**/*
+          if-no-files-found: error
+          retention-days: 1
+
+  build_macos_arm64:
+    name: 🍎 MacOS ARM64
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - run: eval $(curl -sSf sh.davidalsh.com/just.sh | sh)
+      - run: eval $(curl -sSf sh.davidalsh.com/rust.sh | sh)
+      - run: just build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ion-macos-arm64
+          path: ${{ github.workspace }}/target/macos-arm64/release/**/*
+          if-no-files-found: error
+          retention-days: 1
+
+  build_windows_amd64:
+    name: 🟦 Windows amd64
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: eval $(curl -sSf sh.davidalsh.com/just.sh | sh)
+      - run: eval $(curl -sSf sh.davidalsh.com/rust.sh | sh)
+      - run: just build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ion-windows-amd64
+          path: ${{ github.workspace }}/target/windows-amd64/release/**/*
+          if-no-files-found: error
+          retention-days: 1
+
+#   V8 does not compile on Arm Windows        
+#   build_windows_arm64:
+#     name: 🟦 Windows arm64
+#     runs-on: windows-latest
+#     steps:
+#       - uses: actions/checkout@v4
+#       - run: eval $(curl -sSf sh.davidalsh.com/just.sh | sh)
+#       - run: eval $(curl -sSf sh.davidalsh.com/rust.sh | sh)
+#       - run: rustup target add aarch64-pc-windows-msvc
+#       - run: just build
+#         env:
+#             arch: arm64
+#       - uses: actions/upload-artifact@v4
+#         with:
+#           name: ion-windows-arm64
+#           path: ${{ github.workspace }}/target/windows-arm64/release/**/*
+#           if-no-files-found: error
+#           retention-days: 1
+
+  publish-github-release:
+    name: "🔄 Publish Github Release"
+    runs-on: ubuntu-24.04
+    needs:
+      - vars
+      - test
+      - format
+      - build_linux_amd64
+      - build_linux_arm64
+      - build_macos_amd64
+      - build_macos_arm64
+      - build_windows_amd64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { path: artifacts }
+      - name: Publish` Github Release
+        env:
+          GH_TAG: ${{needs.vars.outputs.GH_TAG}}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+
+          echo "Tag: ${GH_TAG}"
+
+          gh release create $GH_TAG  --draft --notes "Automatically built binaries"
+          gh release edit $GH_TAG --title "🚀 Latest"
+
+          cd artifacts
+
+          for name in *; do
+            echo $name
+            cd "${{ github.workspace }}/artifacts/${name}"
+            ls -l
+            chmod +x ./*
+            tar -czvf ./${name}.tar.gz ./*
+            gh release upload $GH_TAG ${name}.tar.gz
+          done
+
+          gh release edit $GH_TAG --draft=false
