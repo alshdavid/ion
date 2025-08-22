@@ -1,192 +1,97 @@
-use std::{str::FromStr, sync::Arc};
+use std::clone;
 
-use http::{HeaderName, HeaderValue, StatusCode};
-use tokio::io::{AsyncWriteExt, DuplexStream};
-
-use crate::{
-    http1::ResponseBuilderExt,
-    jsrt::{ContextPool, ContextPoolOptions, Environment},
-};
-
-mod http1;
 mod js;
-mod jsrt;
-mod napi;
 
-const SCRIPT: &str = include_str!("../handlers/hello-world.js");
+static CODE: &str = r#"
+  "Hello World"
+"#;
 
 fn main() -> anyhow::Result<()> {
-    tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .worker_threads(num_cpus::get_physical())
-        .build()
-        .unwrap()
-        .block_on(main_async())
-}
+    let platform = v8::new_default_platform(0, false).make_shared();
+    v8::V8::set_flags_from_string(
+        "--no_freeze_flags_after_init --expose_gc --harmony-shadow-realm --allow_natives_syntax --turbo_fast_api_calls --js-source-phase-imports",
+      );
+    v8::V8::initialize_platform(platform);
+    v8::V8::initialize();
 
-async fn main_async() -> anyhow::Result<()> {
-    let pool = Arc::new(ContextPool::new(&ContextPoolOptions { threads: 8 }));
+    let mut isolate = v8::Isolate::new(v8::CreateParams::default());
 
-    http1::http1_server("0.0.0.0:8080", move |_req, res| {
-        let pool = pool.clone();
-        async move {
-            // Handle synchronous events
-            let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<HttpSyncEvents>();
-            let tx = Chan(tx);
-            // Streamed body
+    let mut main_scope = v8::HandleScope::new(&mut isolate);
+    let context = v8::Context::new(&mut main_scope, Default::default());
+    let mut context_scope = v8::ContextScope::new(&mut main_scope, context);
+    let mut scope = v8::HandleScope::new(&mut context_scope);
 
-            pool.exec(move |mut env| {
-                // Evaluate FaaS Function
-                eval_script(&mut env, SCRIPT);
+    let weak = {
+        let mut scope = v8::HandleScope::new(&mut scope);
+        let target = v8::Object::new(&mut scope);
+        let weak = v8::Weak::with_guaranteed_finalizer(
+            &mut scope,
+            target,
+            Box::new(|| println!("Called: with_guaranteed_finalizer")),
+        );
 
-                // Get the exported handler
-                let jsv_fn_handler = get_handler(&mut env);
+        let code = v8::String::new(&mut scope, CODE).unwrap();
+        let script = v8::Script::compile(&mut scope, code, None).unwrap();
+        let result = script.run(&mut scope).unwrap();
 
-                // Create Rust <-> JavaScript bindings
-                let jsv_http_response = v8_create_http_response(&mut env.context_scope, tx)
-                    .try_cast::<v8::Value>()
-                    .expect("Cast to value");
+        let result = result.to_string(&mut scope).unwrap();
+        println!("{}", result.to_rust_string_lossy(&mut scope));
 
-                // Call FaaS handler
-                let jsv_ukn_return = v8::undefined(&mut env.context_scope);
-                jsv_fn_handler.call(
-                    &mut env.context_scope,
-                    jsv_ukn_return.into(),
-                    &[jsv_http_response, jsv_http_response],
-                );
+        weak
+    };
 
-                println!("finished handler")
-            });
-
-            let (mut res, mut writer) = res.body_stream(1)?;
-
-            while let Some(ev) = rx.recv().await {
-                match ev {
-                    HttpSyncEvents::HeadersAppend((key, value)) => {
-                        res.headers_mut().append(
-                            HeaderName::from_str(key.as_str()).unwrap(),
-                            HeaderValue::from_str(value.as_str()).unwrap(),
-                        );
-                    }
-                    HttpSyncEvents::WriteHead(status) => {
-                        (*res.status_mut()) = StatusCode::from_u16(status).unwrap();
-                        break;
-                    }
-                    HttpSyncEvents::WriteBody(bytes) => {
-                      println!("got bytes1");
-                        writer.write_all(&bytes).await.unwrap();
-                    }
-                }
-            }
-
-            tokio::task::spawn(async move {
-                while let Some(ev) = rx.recv().await {
-                    let HttpSyncEvents::WriteBody(bytes) = ev else {
-                        continue;
-                    };
-                      println!("got bytes2 {:?}", bytes);
-
-                    writer.write_all(&bytes).await.unwrap();
-                    break;
-                  }
-                  drop(writer)
-            });
-
-            println!("done");
-
-            Ok(res)
-        }
-    })
-    .await?;
+    scope.request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
 
     Ok(())
 }
 
-struct Chan(tokio::sync::mpsc::UnboundedSender<HttpSyncEvents>);
+/*
 
-impl Clone for Chan {
-    fn clone(&self) -> Self {
-      println!("clone");
-      Chan(self.0.clone())
-    }
-}
+use std::clone;
 
-impl Drop for Chan {
-    fn drop(&mut self) {
-        println!("ded")
-    }
-}
+mod js;
 
-enum HttpSyncEvents {
-    HeadersAppend((String, String)),
-    WriteHead(u16),
-    WriteBody(Vec<u8>),
-}
+static CODE: &str = r#"
+  globalThis.foo("Hello World")
+"#;
 
-fn v8_create_http_response<'a>(
-    scope: &mut v8::ContextScope<'a, v8::HandleScope>,
-    sync_events: Chan,
-) -> v8::Local<'a, v8::Object> {
-    let jsv_obj_response = v8::Object::new(scope);
+fn main() -> anyhow::Result<()> {
+    let platform = v8::new_default_platform(0, false).make_shared();
+    v8::V8::set_flags_from_string(
+        "--no_freeze_flags_after_init --expose_gc --harmony-shadow-realm --allow_natives_syntax --turbo_fast_api_calls --js-source-phase-imports",
+      );
+    v8::V8::initialize_platform(platform);
+    v8::V8::initialize();
 
-    let jsv_fn_write = js::v8_create_function_from_closure(scope, {
-        let sync_events = sync_events.clone();
-        move |scope: &mut v8::HandleScope,
-              args: v8::FunctionCallbackArguments,
-              _rv: v8::ReturnValue| {
-            let value = args.get(0);
-            let js_bytes = value.try_cast::<v8::String>().unwrap();
-            let v = js_bytes.to_rust_string_lossy(scope);
-            // js_bytes.copy_contents(&mut bytes);
-            sync_events.0.send(HttpSyncEvents::WriteBody(v.into_bytes())).unwrap();
-        }
-    });
-    js::v8_set_obj_property(scope, &jsv_obj_response, "write", jsv_fn_write.into());
+    let mut isolate = v8::Isolate::new(v8::CreateParams::default());
 
-    let jsv_fn_write_head = js::v8_create_function_from_closure(
-        scope,
-        move |scope: &mut v8::HandleScope,
-              args: v8::FunctionCallbackArguments,
-              _rv: v8::ReturnValue| {
-            let value = args.get(0);
-            let Some(status) = value.uint32_value(scope) else {
-                panic!("NaN")
-            };
-            sync_events.0
-                .send(HttpSyncEvents::WriteHead(status.try_into().unwrap()))
-                .unwrap();
+    let mut handle_scope = v8::HandleScope::new(&mut isolate);
+    let context = v8::Context::new(&mut handle_scope, Default::default());
+    let mut context_scope = v8::ContextScope::new(&mut handle_scope, context);
+
+    let global_this = context.global(&mut context_scope);
+    let js_fn_foo = js::v8_create_function_from_closure(
+        &mut context_scope,
+        |scope: &mut v8::HandleScope, args: v8::FunctionCallbackArguments, rv: v8::ReturnValue| {
+            println!("Called")
         },
     );
-    js::v8_set_obj_property(
-        scope,
-        &jsv_obj_response,
-        "writeHead",
-        jsv_fn_write_head.into(),
-    );
+    js::v8_set_obj_property(&mut context_scope, &global_this, "foo", js_fn_foo.into());
 
-    jsv_obj_response
+    let code = v8::String::new(&mut context_scope, CODE).unwrap();
+    let script = v8::Script::compile(&mut context_scope, code, None).unwrap();
+    let result = script.run(&mut context_scope).unwrap();
+
+    js::v8_delete_obj_property(&mut context_scope, &global_this, "foo");
+    let result = result.to_string(&mut context_scope).unwrap();
+    println!("{}", result.to_rust_string_lossy(&mut context_scope));
+
+    context_scope.request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
+
+    Ok(())
 }
 
-fn eval_script(env: &mut Environment, code: &str) {
-    let code = v8::String::new(&mut env.context_scope, code).expect("Script to be valid string");
 
-    let script = v8::Script::compile(&mut env.context_scope, code, None)
-        .expect("Script to compile correctly");
 
-    script
-        .run(&mut env.context_scope)
-        .expect("Script to run correctly");
-}
 
-fn get_handler<'a>(env: &mut Environment<'_, 'a>) -> v8::Local<'a, v8::Function> {
-    let global_this = env.context.global(&mut env.context_scope);
-
-    let jsv_obj_exports = js::v8_get_obj_property(&mut env.context_scope, &global_this, "exports")
-        .expect("Handler to have globalThis.exports");
-
-    let jsv_fn_handler = jsv_obj_exports
-        .try_cast::<v8::Function>()
-        .expect("Handler to be function");
-
-    jsv_fn_handler
-}
+*/
