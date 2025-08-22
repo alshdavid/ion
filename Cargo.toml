@@ -1,0 +1,41 @@
+[workspace]
+resolver = "3"
+members = ["./crates/*", "./examples", "./_scratch/scratch"]
+
+[workspace.lints.rust]
+elided_lifetimes_in_paths = "allow"
+rust_2018_idioms = { priority = -1, level = "deny" }
+
+[workspace.lints.clippy]
+module_inception = "allow"
+uninlined-format-args = "allow"
+type-complexity = "allow"
+new-without-default = "allow"
+
+[profile.release]
+opt-level = 3
+debug = false
+lto = true
+strip = "debuginfo"
+panic = 'unwind'
+incremental = false
+codegen-units = 1
+rpath = false
+
+[workspace.dependencies]
+anyhow = "1.0.99"
+v8 = "139.0.0"
+tokio = { version = "1.47.1", features = ["full"] }
+flume = "0.11.1"
+parking_lot = "0.12.4"
+futures = "0.3.31"
+futures-time = "3.0.0"
+clap = { version = "4.5.46", features = ["derive"] }
+normalize-path = "0.2.1"
+async-io = "2.5.0"
+http = "1.3.1"
+http-body-util = "0.1.3"
+hyper = { version = "1.7.0", features = ["full"] }
+hyper-util = { version = "0.1.16", features = ["tokio"] }
+tokio-util = "0.7.16"
+num_cpus = "1.17.0"

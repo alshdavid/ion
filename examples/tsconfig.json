@@ -1,0 +1,11 @@
+{
+    "compilerOptions": {
+        "allowJs": true,
+        "lib": ["ESNext"],
+        "noEmit": true,
+        "moduleResolution": "classic"
+    },
+    "include": [
+        "js/**/*"
+    ]
+}
