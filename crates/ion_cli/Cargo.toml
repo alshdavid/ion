@@ -1,0 +1,14 @@
+[package]
+name = "ion_cli"
+version = "0.1.0"
+edition = "2024"
+description = "Entrypoint for CLI"
+
+[lints]
+workspace = true
+
+[dependencies]
+ion.path = "../ion"
+clap.workspace = true
+anyhow.workspace = true
+normalize-path.workspace = true

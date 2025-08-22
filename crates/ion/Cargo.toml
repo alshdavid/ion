@@ -1,0 +1,15 @@
+[package]
+name = "ion"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+
+[lints]
+workspace = true
+
+[dependencies]
+flume.workspace = true
+futures.workspace = true
+v8.workspace = true
+tokio = { workspace = true, features = ["full"] }
