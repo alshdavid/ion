@@ -1,4 +1,7 @@
-project_name := "ion"
+# Windows requires GNU coreuitls
+set windows-shell := ["pwsh", "-NoLogo", "-NoProfileLoadTime", "-Command"]
+
+project_name := "ion_cli"
 profile := env_var_or_default("profile", "debug")
 
 os := \
@@ -55,30 +58,27 @@ bin_name := \
   else \
     { project_name }
 
-out_dir :=  join(justfile_directory(), "target", os + "-" + arch, profile)
-out_dir_link :=  join(justfile_directory(), "target", profile)
+out_dir :=  join(justfile_directory(), "target", target, profile)
+fmt_file :=  join(justfile_directory(), "rust-fmt.toml")
 
 build:
-  @rm -rf "{{out_dir}}"
-  @rm -rf "{{out_dir_link}}"
-  @mkdir -p "{{out_dir}}"
   cargo build {{profile_cargo}} {{target_cargo}}
-  @cp "./target/.cargo/{{target}}/{{profile}}/{{project_name}}" "{{out_dir}}"
-  @# ln -rs "{{out_dir}}" "{{out_dir_link}}"
 
 run *ARGS:
   just build
-  {{out_dir}}/{{bin_name}} {{ARGS}}
+  {{join(out_dir, bin_name)}} {{ARGS}}
+
+example target:
+  cargo run --package ion_examples {{target}}
 
 test:
   cargo test
 
 format arg="--check":
-  #!/usr/bin/env bash
   just fmt {{arg}}
   just lint {{arg}}
 
-fmt arg="--check":
+_fmt arg="--check":
   #!/usr/bin/env bash
   args=""
   while read -r line; do
@@ -92,7 +92,15 @@ fmt arg="--check":
     cargo fmt --check -- $args
   fi
 
-lint arg="--check":
+[unix]
+fmt arg="--check": 
+  just _fmt {{arg}}
+
+[windows]
+fmt arg="--check":
+  bash -c "just _fmt {{arg}}"
+
+_lint arg="--check":
   #!/usr/bin/env bash
   if [ "{{arg}}" = "--fix" ]; then
     cargo clippy --fix --allow-dirty -- --deny "warnings"
@@ -100,12 +108,17 @@ lint arg="--check":
     cargo clippy -- --deny "warnings"
   fi
 
+[unix]
+lint arg="--check": 
+  just _lint {{arg}}
+
+[windows]
+lint arg="--check":
+  bash -c "just _lint {{arg}}"
+
 watch *ARGS:
   cargo watch --watch src -- just run {{ARGS}}
 
 watch-silent *ARGS:
   cargo watch -- bash -c "just build && clear; {{out_dir}}/http-server {{ARGS}}"
-
-reinstall:
-  just build
-  cp {{out_dir}}/{{project_name}} $(which http-server-rs)
+  

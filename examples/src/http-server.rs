@@ -1,3 +1,5 @@
+fn main() {}
+
 // use std::{str::FromStr, sync::Arc};
 
 // use http::{HeaderName, HeaderValue, StatusCode};
@@ -191,4 +193,3 @@
 //     jsv_fn_handler
 // }
 
-fn main() {}

@@ -1,0 +1,12 @@
+[package]
+name = "ion_cli"
+version = "0.1.0"
+edition = "2024"
+
+[lints]
+workspace = true
+
+[dependencies]
+ion = { path = "../ion" }
+v8 = {workspace = true}
+anyhow = {workspace = true}

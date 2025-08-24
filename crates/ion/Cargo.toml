@@ -1,0 +1,13 @@
+[package]
+name = "ion"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["lib", "cdylib"]
+
+[lints]
+workspace = true
+
+[dependencies]
+v8 = { workspace = true }
