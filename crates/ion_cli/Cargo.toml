@@ -10,3 +10,5 @@ workspace = true
 ion = { path = "../ion" }
 v8 = {workspace = true}
 anyhow = {workspace = true}
+jemallocator = "0.1.9"
+jemalloc-ctl = "0.2.0"
