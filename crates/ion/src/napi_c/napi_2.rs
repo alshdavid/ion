@@ -13,9 +13,6 @@ pub unsafe extern "C" fn napi_get_uv_event_loop(
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn uv_run(
-    loop_: *mut uv_loop_s,
-    mode: uv_run_mode,
-) -> c_int {
+pub unsafe extern "C" fn uv_run(loop_: *mut uv_loop_s, mode: uv_run_mode) -> c_int {
     todo!()
 }

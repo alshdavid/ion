@@ -15,3 +15,6 @@ new-without-default = "allow"
 [workspace.dependencies]
 anyhow = "1.0.99"
 v8 = "139.0.0"
+tokio = { version = "1.47.1", features = ["full"] }
+flume = "0.11.1"
+parking_lot = "0.12.4"

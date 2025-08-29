@@ -1,6 +1,6 @@
 mod basic;
 
-fn main() {
+fn main() -> anyhow::Result<()> {
     let example = std::env::args()
         .collect::<Vec<String>>()
         .get(1)
@@ -9,6 +9,6 @@ fn main() {
 
     match example.as_str() {
         "basic" => basic::main(),
-        _ => eprintln!("No example for: \"{}\"", example),
+        _ => Err(anyhow::anyhow!("No example for: \"{}\"", example)),
     }
 }

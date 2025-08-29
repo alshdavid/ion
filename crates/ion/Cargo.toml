@@ -10,4 +10,7 @@ crate-type = ["lib", "cdylib"]
 workspace = true
 
 [dependencies]
-v8 = { workspace = true }
+flume.workspace = true
+parking_lot.workspace = true
+tokio.workspace = true
+v8.workspace = true

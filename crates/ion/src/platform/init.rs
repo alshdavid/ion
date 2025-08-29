@@ -1,38 +1,41 @@
 use std::sync::OnceLock;
-use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 
-static PLATFORM: OnceLock<()> = OnceLock::new();
-static HAS_INIT: AtomicBool = AtomicBool::new(false);
+use super::JsRuntime;
+use super::platform::HAS_INIT;
+use super::platform::PLATFORM;
+use super::platform::PlatformEvent;
 
-/// The V8 Platform can only be initialized once per process
-pub fn initialize_once_with_args(args: &[&str]) {
-    PLATFORM.get_or_init(move || {
-        let platform = v8::new_default_platform(0, false).make_shared();
+static RUNTIME: OnceLock<super::Result<JsRuntime>> = OnceLock::new();
 
-        if !args.is_empty() {
-            // Debug args
-            // "--no_freeze_flags_after_init --expose_gc --harmony-shadow-realm --allow_natives_syntax --turbo_fast_api_calls --js-source-phase-imports",
-            let args = args
-                .iter()
-                .map(|v| v.to_string())
-                .collect::<Vec<String>>()
-                .join(" ");
+/// Initialize the v8 runtime, this can only be done once per process.
+/// Subsequent calls will return the first instance of [`JsRuntime`]
+pub fn initialize_once_with_args(args: &[&str]) -> super::Result<JsRuntime> {
+    match RUNTIME.get_or_init(|| {
+        let args = args.iter().map(|v| v.to_string()).collect::<Vec<String>>();
 
-            v8::V8::set_flags_from_string(&args);
-        }
+        if PLATFORM.send(PlatformEvent::Init(args)).is_err() {
+            return Err(super::Error::PlatformInitializeError);
+        };
 
-        v8::V8::initialize_platform(platform);
-        v8::V8::initialize();
+        let rt = JsRuntime {
+            tx: PLATFORM.clone(),
+        };
 
-        HAS_INIT.store(true, Ordering::Release);
-    });
+        Ok(rt)
+    }) {
+        Ok(rt) => Ok(rt.clone()),
+        Err(err) => Err(err.clone()),
+    }
 }
 
-pub fn initialize_once() {
+/// Initialize the v8 runtime, this can only be done once per process.
+/// Subsequent calls will return the first instance of [`JsRuntime`]
+pub fn initialize_once() -> super::Result<JsRuntime> {
     initialize_once_with_args(&[])
 }
 
+/// Check if the v8 runtime has already been initialized
 pub fn has_initialized() -> bool {
     HAS_INIT.load(Ordering::Acquire)
 }

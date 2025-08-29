@@ -1,21 +1,29 @@
 use ion;
-use ion::JsString;
 
-static CODE: &str = r#"
-  "Hello World"
-"#;
-
-pub fn main() {
+pub fn main() -> anyhow::Result<()> {
     // Start the runtime
-    ion::platform::initialize_once();
-    let jsrt = ion::JsRuntime::new();
+    let runtime = ion::platform::initialize_once()?;
 
-    // Evaluate a string, can return any FromJsValue type
-    let result: JsString = jsrt.eval(CODE);
+    // Create an isolate running on a dedicated thread
+    let worker = runtime.spawn_worker()?;
 
-    // Open a scope within the isolate and execute some Rust
-    jsrt.exec(|env| {
-        let result = result.into_utf8(&env);
-        println!("{}", result);
-    });
+    // Open a JavaScript context on the isolate thread to execute JavaScript on
+    // You can open multiple contexts, sharing the same thread
+    {
+        let ctx = worker.create_context()?;
+
+        // Execute some JavaScript in the context
+        ctx.exec_blocking(|env| {
+            // Evaluate arbitrary JavaScript, the result of the last line is returned
+            let value = env.eval_script("1 + 1")?;
+
+            // Cast to Rust type
+            let result = value.int32_value(env.scope()).unwrap();
+
+            println!("Returned: {}", result);
+            Ok(())
+        })?;
+    };
+
+    Ok(())
 }

@@ -13,26 +13,17 @@ pub unsafe extern "C" fn napi_get_last_error_info(
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn napi_get_undefined(
-    env: napi_env,
-    result: *mut napi_value,
-) -> napi_status {
+pub unsafe extern "C" fn napi_get_undefined(env: napi_env, result: *mut napi_value) -> napi_status {
     todo!()
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn napi_get_null(
-    env: napi_env,
-    result: *mut napi_value,
-) -> napi_status {
+pub unsafe extern "C" fn napi_get_null(env: napi_env, result: *mut napi_value) -> napi_status {
     todo!()
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn napi_get_global(
-    env: napi_env,
-    result: *mut napi_value,
-) -> napi_status {
+pub unsafe extern "C" fn napi_get_global(env: napi_env, result: *mut napi_value) -> napi_status {
     todo!()
 }
 
@@ -46,18 +37,12 @@ pub unsafe extern "C" fn napi_get_boolean(
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn napi_create_object(
-    env: napi_env,
-    result: *mut napi_value,
-) -> napi_status {
+pub unsafe extern "C" fn napi_create_object(env: napi_env, result: *mut napi_value) -> napi_status {
     todo!()
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn napi_create_array(
-    env: napi_env,
-    result: *mut napi_value,
-) -> napi_status {
+pub unsafe extern "C" fn napi_create_array(env: napi_env, result: *mut napi_value) -> napi_status {
     todo!()
 }
 
@@ -615,10 +600,7 @@ pub unsafe extern "C" fn napi_create_reference(
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn napi_delete_reference(
-    env: napi_env,
-    ref_: napi_ref,
-) -> napi_status {
+pub unsafe extern "C" fn napi_delete_reference(env: napi_env, ref_: napi_ref) -> napi_status {
     todo!()
 }
 
@@ -692,10 +674,7 @@ pub unsafe extern "C" fn napi_escape_handle(
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn napi_throw(
-    env: napi_env,
-    error: napi_value,
-) -> napi_status {
+pub unsafe extern "C" fn napi_throw(env: napi_env, error: napi_value) -> napi_status {
     todo!()
 }
 
@@ -859,10 +838,7 @@ pub unsafe extern "C" fn napi_get_dataview_info(
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn napi_get_version(
-    env: napi_env,
-    result: *mut u32,
-) -> napi_status {
+pub unsafe extern "C" fn napi_get_version(env: napi_env, result: *mut u32) -> napi_status {
     todo!()
 }
 
