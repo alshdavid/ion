@@ -4,13 +4,12 @@ version = "0.1.0"
 edition = "2024"
 
 [lib]
-crate-type = ["lib", "cdylib"]
 
 [lints]
 workspace = true
 
 [dependencies]
 flume.workspace = true
-parking_lot.workspace = true
-tokio.workspace = true
+futures.workspace = true
 v8.workspace = true
+async-io.workspace = true

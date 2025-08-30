@@ -24,9 +24,9 @@ else \
 
 target := \
 if \
-  os + arch == "linuxamd64" { "x86_64-unknown-linux-musl" } \
+  os + arch == "linuxamd64" { "x86_64-unknown-linux-gnu" } \
 else if \
-  os + arch == "linuxarm64" { "aarch64-unknown-linux-musl" } \
+  os + arch == "linuxarm64" { "aarch64-unknown-linux-gnu" } \
 else if \
   os + arch == "macosamd64" { "x86_64-apple-darwin" } \
 else if\
@@ -59,10 +59,35 @@ bin_name := \
     { project_name }
 
 out_dir :=  join(justfile_directory(), "target", target, profile)
+out_dir_dist :=  join(justfile_directory(), "target", os + "-" + arch, profile)
 fmt_file :=  join(justfile_directory(), "rust-fmt.toml")
 
+[linux]
 build:
+  rm -rf {{out_dir_dist}}
   cargo build {{profile_cargo}} {{target_cargo}}
+  mkdir -p {{out_dir_dist}}
+  cp {{join(out_dir, "ion_cli")}} {{join(out_dir_dist, "ion")}}
+  cp {{join(out_dir, "libion_c.so")}} {{join(out_dir_dist, "libion.so")}}
+  cp {{join(out_dir, "libion_c.a")}} {{join(out_dir_dist, "libion.a")}}
+
+[macos]
+build:
+  rm -rf {{out_dir_dist}}
+  cargo build {{profile_cargo}} {{target_cargo}}
+  mkdir -p {{out_dir_dist}}
+  cp {{join(out_dir, "ion_cli")}} {{join(out_dir_dist, "ion")}}
+  cp {{join(out_dir, "libion_c.dylib")}} {{join(out_dir_dist, "libion.dylib")}}
+  cp {{join(out_dir, "libion_c.a")}} {{join(out_dir_dist, "libion.a")}}
+
+[windows]
+build:
+  if (Test-Path {{out_dir_dist}}){ Remove-Item -recurse -force {{out_dir_dist}} } 
+  cargo build {{profile_cargo}} {{target_cargo}}
+  New-Item -force -type directory {{out_dir_dist}}
+  Copy-Item {{join(out_dir, "ion_cli.exe")}} {{join(out_dir_dist, "ion.exe")}}
+  Copy-Item {{join(out_dir, "ion_c.dll")}} {{join(out_dir_dist, "ion.dll")}}
+  Copy-Item {{join(out_dir, "ion_c.lib")}} {{join(out_dir_dist, "ion.lib")}}
 
 run *ARGS:
   just build

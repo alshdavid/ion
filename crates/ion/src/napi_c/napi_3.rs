@@ -4,7 +4,10 @@ use super::types::*;
 use std::os::raw::c_void;
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn napi_fatal_exception(env: napi_env, err: napi_value) -> napi_status {
+pub unsafe extern "C" fn napi_fatal_exception(
+    env: napi_env,
+    err: napi_value,
+) -> napi_status {
     todo!()
 }
 

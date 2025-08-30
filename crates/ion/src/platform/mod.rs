@@ -1,6 +1,7 @@
 mod context;
 mod env;
 mod error;
+pub mod event_loop;
 mod init;
 mod js_value;
 mod platform;

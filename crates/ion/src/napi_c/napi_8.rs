@@ -15,17 +15,23 @@ pub unsafe extern "C" fn napi_add_async_cleanup_hook(
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn napi_remove_async_cleanup_hook(
-    remove_handle: napi_async_cleanup_hook_handle,
+    remove_handle: napi_async_cleanup_hook_handle
 ) -> napi_status {
     todo!()
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn napi_object_freeze(env: napi_env, object: napi_value) -> napi_status {
+pub unsafe extern "C" fn napi_object_freeze(
+    env: napi_env,
+    object: napi_value,
+) -> napi_status {
     todo!()
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn napi_object_seal(env: napi_env, object: napi_value) -> napi_status {
+pub unsafe extern "C" fn napi_object_seal(
+    env: napi_env,
+    object: napi_value,
+) -> napi_status {
     todo!()
 }

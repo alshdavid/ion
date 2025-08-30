@@ -1,5 +1,3 @@
-use ion;
-
 pub fn main() -> anyhow::Result<()> {
     // Start the runtime
     let runtime = ion::platform::initialize_once()?;
@@ -14,11 +12,14 @@ pub fn main() -> anyhow::Result<()> {
 
         // Execute some JavaScript in the context
         ctx.exec_blocking(|env| {
+            // Open scope for execution (TODO hide this)
+            let scope = &mut env.open_scope();
+
             // Evaluate arbitrary JavaScript, the result of the last line is returned
             let value = env.eval_script("1 + 1")?;
 
             // Cast to Rust type
-            let result = value.int32_value(env.scope()).unwrap();
+            let result = value.int32_value(scope).unwrap();
 
             println!("Returned: {}", result);
             Ok(())

@@ -39,7 +39,7 @@ pub unsafe extern "C" fn napi_call_threadsafe_function(
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn napi_acquire_threadsafe_function(
-    func: napi_threadsafe_function,
+    func: napi_threadsafe_function
 ) -> napi_status {
     todo!()
 }

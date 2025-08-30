@@ -1,0 +1,14 @@
+[package]
+name = "ion_c"
+version = "0.1.0"
+edition = "2024"
+description = "C FFI for Ion"
+
+[lib]
+crate-type = ["cdylib", "staticlib"]
+
+[lints]
+workspace = true
+
+[dependencies]
+ion.path = "../ion"

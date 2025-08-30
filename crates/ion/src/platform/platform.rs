@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-use std::ffi::c_void;
 use std::sync::Arc;
 use std::sync::LazyLock;
 use std::sync::atomic::AtomicBool;
@@ -43,7 +41,7 @@ pub(crate) static PLATFORM: LazyLock<Sender<PlatformEvent>> = LazyLock::new(|| {
                 }
                 PlatformEvent::SpawnWorker(tx) => {
                     if tx.send(Arc::new(JsWorker::new())).is_err() {
-                        /// TODO implement global error handler
+                        // TODO implement global error handler
                         panic!("Internal error starting worker")
                     };
                 }

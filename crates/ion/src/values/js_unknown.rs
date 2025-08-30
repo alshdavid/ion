@@ -9,11 +9,11 @@ pub struct JsUnknown {
     pub(self) handle: *mut c_void,
 }
 
-impl JsUnknown {
-    fn inner(&self) -> &mut v8::Local<'_, v8::Value> {
-        unsafe { &mut *(self.handle as *mut v8::Local<'_, v8::Value>) }
-    }
-}
+// impl JsUnknown {
+//     fn inner(&self) -> &mut v8::Local<'_, v8::Value> {
+//         unsafe { &mut *(self.handle as *mut v8::Local<'_, v8::Value>) }
+//     }
+// }
 
 impl Drop for JsUnknown {
     fn drop(&mut self) {
@@ -22,7 +22,10 @@ impl Drop for JsUnknown {
 }
 
 impl FromJsRaw for JsUnknown {
-    fn from_js_raw(env: &Env, value: v8::Local<'_, v8::Value>) -> Self {
+    fn from_js_raw(
+        _env: &Env,
+        value: v8::Local<'_, v8::Value>,
+    ) -> Self {
         let handle = Box::into_raw(Box::new(value.cast::<v8::Value>()));
         JsUnknown {
             handle: handle as _,

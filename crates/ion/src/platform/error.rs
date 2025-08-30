@@ -7,15 +7,21 @@ pub enum Error {
     IO(Arc<std::io::Error>),
     Generic(String),
     PlatformInitializeError,
+    IsolateNotInitializedError,
+    EventLoopNotInitializedError,
     WorkerInitializeError,
     StringCreateError,
     ScriptCompileError,
     ScriptRunError,
     ExecError,
+    TaskSpawnError,
 }
 
 impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         write!(f, "{:?}", self)
     }
 }

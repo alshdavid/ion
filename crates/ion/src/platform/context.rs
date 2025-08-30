@@ -1,6 +1,9 @@
-use flume::{Sender, bounded};
+use flume::Sender;
+use flume::bounded;
 
-use crate::{Error, JsWorkerEvent};
+use crate::Error;
+use crate::JsWorkerEvent;
+use crate::utils::channel::oneshot;
 
 use super::Env;
 
@@ -34,7 +37,7 @@ impl JsContext {
 
         self.exec(move |env| {
             callback(env)?;
-            tx.send(());
+            tx.send(()).unwrap();
             Ok(())
         })?;
 
@@ -66,12 +69,14 @@ impl JsContext {
 
 impl Drop for JsContext {
     fn drop(&mut self) {
+        let (tx, rx) = oneshot();
         if self
             .tx
-            .send(JsWorkerEvent::ShutdownContext(self.id))
+            .send(JsWorkerEvent::ShutdownContext(self.id, tx))
             .is_err()
         {
             // Do nothing, worker is shut down
         };
+        rx.recv().unwrap();
     }
 }
