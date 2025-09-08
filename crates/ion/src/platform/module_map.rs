@@ -13,10 +13,10 @@ impl ModuleMap {
         &mut self,
         module: Module,
     ) {
-        let id = module.id.clone();
+        let id = module.id;
         let name = module.name.clone();
 
-        self.inner.insert(id.clone(), module);
+        self.inner.insert(id, module);
         self.names.insert(name, id);
     }
 
@@ -38,9 +38,7 @@ impl ModuleMap {
         &self,
         name: impl AsRef<str>,
     ) -> Option<&Module> {
-        let Some(id) = self.names.get(name.as_ref()) else {
-            return None;
-        };
+        let id = self.names.get(name.as_ref())?;
         self.get_module_by_id(id)
     }
 
@@ -48,9 +46,7 @@ impl ModuleMap {
         &mut self,
         name: impl AsRef<str>,
     ) -> Option<&mut Module> {
-        let Some(id) = self.names.get_mut(name.as_ref()) else {
-            return None;
-        };
+        let id = self.names.get_mut(name.as_ref())?;
         self.inner.get_mut(id)
     }
 }

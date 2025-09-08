@@ -35,10 +35,7 @@ impl FromJsValue for JsPromise {
         env: &Env,
         value: Value,
     ) -> crate::Result<Self> {
-        Ok(Self {
-            value,
-            env: env.clone(),
-        })
+        Ok(Self { value, env: *env })
     }
 }
 
@@ -47,6 +44,6 @@ impl ToJsValue for JsPromise {
         _env: &Env,
         val: Self,
     ) -> crate::Result<Value> {
-        Ok(val.value.clone())
+        Ok(val.value)
     }
 }

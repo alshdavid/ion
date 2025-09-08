@@ -26,8 +26,8 @@ impl Extension {
                     let module_map = realm.module_map();
 
                     // Run extension hook
-                    let mut exports = JsObject::new(&env)?;
-                    extension(&env, &mut exports)?;
+                    let mut exports = JsObject::new(env)?;
+                    extension(env, &mut exports)?;
 
                     // Construct module for binding
                     let module = Module::new(realm, module_name, binding)?;
@@ -43,7 +43,7 @@ impl Extension {
                         let global_this = global_this.value().inner().cast::<v8::Object>();
                         let key = v8::Integer::new(scope, v8_module.get_identity_hash().into());
                         let value = exports.value().inner();
-                        global_this.set(scope, key.into(), value.into());
+                        global_this.set(scope, key.into(), value);
                     };
 
                     // Initialize extension module

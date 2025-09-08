@@ -39,10 +39,10 @@ impl Env {
         let shutdown_has_run = Box::into_raw(Box::new(false));
 
         let mut env = Box::new(Env {
-            isolate_ptr: isolate_ptr,
+            isolate_ptr,
             context,
             global_this: global_this as _,
-            async_tasks: async_tasks,
+            async_tasks,
             background_tasks,
             inner: std::ptr::null_mut(),
             on_before_exit,
@@ -57,8 +57,11 @@ impl Env {
         self.inner
     }
 
+    /// # SAFETY
+    ///
+    /// Env only lives for as long as the v8::Context
     pub unsafe fn from_raw(r: *mut Env) -> Env {
-        unsafe { *(r as *mut Env) }
+        unsafe { *r }
     }
 
     pub(crate) fn async_tasks(&self) -> &TaskTracker {
@@ -76,7 +79,7 @@ impl Env {
 
     pub fn global_this(&self) -> crate::Result<JsObject> {
         let v = self.global_this as *mut v8::Local<'static, v8::Object>;
-        let v = unsafe { (*v).clone() };
+        let v = unsafe { *v };
         JsObject::from_js_value(self, Value::from(v.cast()))
     }
 
@@ -113,7 +116,7 @@ impl Env {
     }
 
     pub fn shutdown_has_run(&self) -> bool {
-        return unsafe { *self.shutdown_has_run };
+        unsafe { *self.shutdown_has_run }
     }
 
     /// Send a task to a background thread
@@ -154,11 +157,7 @@ impl Env {
         let scope = &mut self.scope();
         let realm = JsRealm::v8_revive(scope);
 
-        let module = Module::new(
-            realm,
-            &generate_random_string(20),
-            code.as_ref().to_string(),
-        )?;
+        let module = Module::new(realm, generate_random_string(20), code.as_ref())?;
 
         let v8_module = Module::v8_run_module(true, realm, module.name.clone(), module)?;
         let v8_module = v8_module.get_module_namespace().cast::<v8::Object>();

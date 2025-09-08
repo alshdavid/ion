@@ -13,6 +13,9 @@ pub struct JsException {
 }
 
 impl JsException {
+    /// # SAFETY
+    ///
+    /// Skips checks for type conversion (TODO)
     pub unsafe fn cast_unchecked<T: FromJsValue>(self) -> T {
         T::from_js_value(&self.env, self.value).expect("Failed to cast JsException")
     }
@@ -39,10 +42,7 @@ impl FromJsValue for JsException {
         env: &Env,
         value: Value,
     ) -> crate::Result<Self> {
-        Ok(Self {
-            value,
-            env: env.clone(),
-        })
+        Ok(Self { value, env: *env })
     }
 }
 
@@ -51,6 +51,6 @@ impl ToJsValue for JsException {
         _env: &Env,
         val: Self,
     ) -> crate::Result<Value> {
-        Ok(val.value.clone())
+        Ok(val.value)
     }
 }

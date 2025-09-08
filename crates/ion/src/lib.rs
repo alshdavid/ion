@@ -1,3 +1,4 @@
+#![deny(unused_crate_dependencies)]
 mod env;
 mod error;
 pub mod extensions;

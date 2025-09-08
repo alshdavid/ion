@@ -1,3 +1,4 @@
+#![allow(clippy::module_inception)]
 pub mod background_worker;
 pub(crate) mod extension;
 pub mod module;

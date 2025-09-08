@@ -36,7 +36,7 @@ pub trait ToJsUnknown: Sized + ToJsValue {
         val: Self,
     ) -> crate::Result<JsUnknown> {
         Ok(JsUnknown {
-            env: env.clone(),
+            env: *env,
             value: ToJsValue::to_js_value(env, val)?,
         })
     }

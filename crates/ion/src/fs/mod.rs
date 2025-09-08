@@ -362,6 +362,7 @@ impl Metadata {
         }
     }
 
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> u64 {
         match self {
             Metadata::Physical(metadata) => metadata.len(),

@@ -119,6 +119,7 @@ impl JsDeferred {
 unsafe impl Send for JsDeferred {}
 unsafe impl Sync for JsDeferred {}
 
+#[allow(clippy::type_complexity)]
 enum JsDeferredEvent {
     Resolve(Box<dyn Send + Sync + FnOnce(&Env) -> crate::Result<Value>>),
     Reject(Box<dyn Send + Sync + FnOnce(&Env) -> crate::Result<Value>>),

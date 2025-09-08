@@ -52,12 +52,12 @@ pub trait JsObjectValue: JsValue {
         let value_value = T::to_js_value(env, value)?;
         let value = value_value.inner();
 
-        object.set(scope, key.into(), value.into());
+        object.set(scope, key.into(), value);
 
         Ok(())
     }
 
-    /// Create a named method on the `Object`
+    // /// Create a named method on the `Object`
     // fn create_named_method<K>(&mut self, name: K, function: Callback) -> crate::Result<()>
     // where
     //     K: AsRef<str>,
@@ -112,7 +112,7 @@ pub trait JsObjectValue: JsValue {
             return Err(crate::Error::ValueGetError);
         };
 
-        Ok(T::from_js_value(env, Value::from(result))?)
+        T::from_js_value(env, Value::from(result))
     }
 
     /// Check if the `Object` has the named property
@@ -138,7 +138,7 @@ pub trait JsObjectValue: JsValue {
         let object_raw = object_value.inner();
         let object = object_raw.cast::<v8::Object>();
 
-        object.delete(scope, name.value().inner().into());
+        object.delete(scope, name.value().inner());
         Ok(true)
     }
 
@@ -199,14 +199,14 @@ pub trait JsObjectValue: JsValue {
         todo!();
     }
 
-    /// This API returns the names of the enumerable properties of object as an array of strings.
-    /// The properties of object whose key is a symbol will not be included.
+    // /// This API returns the names of the enumerable properties of object as an array of strings.
+    // // The properties of object whose key is a symbol will not be included.
     // fn get_property_names(&self) -> crate::Result<Object<'env>> {
     //     todo!();
     // }
 
-    /// <https://nodejs.org/api/n-api.html#n_api_napi_get_all_property_names>
-    /// This API returns an array containing the names of the available properties of this object.
+    // /// <https://nodejs.org/api/n-api.html#n_api_napi_get_all_property_names>
+    // /// This API returns an array containing the names of the available properties of this object.
     // fn get_all_property_names(
     //     &self,
     //     mode: KeyCollectionMode,
@@ -216,7 +216,7 @@ pub trait JsObjectValue: JsValue {
     //     todo!();
     // }
 
-    /// This returns the equivalent of `Object.getPrototypeOf` (which is not the same as the function's prototype property).
+    // /// This returns the equivalent of `Object.getPrototypeOf` (which is not the same as the function's prototype property).
     // fn get_prototype(&self) -> crate::Result<Unknown<'env>> {
     //     todo!();
     // }
@@ -270,7 +270,7 @@ pub trait JsObjectValue: JsValue {
         todo!();
     }
 
-    /// This method allows the efficient definition of multiple properties on a given object.
+    // /// This method allows the efficient definition of multiple properties on a given object.
     // fn define_properties(&mut self, properties: &[Property]) -> crate::Result<()> {
     //     todo!();
     // }
@@ -311,9 +311,9 @@ pub trait JsObjectValue: JsValue {
         todo!();
     }
 
-    /// Adds a `finalize_cb` callback which will be called when the JavaScript object in js_object has been garbage-collected.
-    ///
-    /// This API can be called multiple times on a single JavaScript object.
+    // /// Adds a `finalize_cb` callback which will be called when the JavaScript object in js_object has been garbage-collected.
+    // ///
+    // /// This API can be called multiple times on a single JavaScript object.
     // fn add_finalizer<T, Hint, F>(
     //     &mut self,
     //     native: T,

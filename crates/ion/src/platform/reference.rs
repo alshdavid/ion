@@ -42,6 +42,7 @@ pub struct Reference {
 
 impl Reference {
     /// Register a callback to run when the value is GC'd by v8
+    #[allow(clippy::not_unsafe_ptr_arg_deref)]
     pub fn register_global_finalizer<'a>(
         value: impl Into<v8::Local<'a, v8::Value>>,
         env: *mut Env,
@@ -59,7 +60,7 @@ impl Reference {
         let ptr = Box::into_raw(reference);
         let address = ptr as *mut c_void;
 
-        let reference = unsafe { &mut *(ptr as *mut Reference) };
+        let reference = unsafe { &mut *ptr };
 
         reference.dec_ref();
         reference.finalize_cb = Some(Box::new(move |_| {
@@ -159,6 +160,9 @@ impl Reference {
         Box::into_raw(r)
     }
 
+    /// # SAFETY
+    ///
+    /// This can only live for as long as the v8::Context
     pub unsafe fn from_raw(r: *mut Reference) -> Box<Reference> {
         unsafe { Box::from_raw(r) }
     }

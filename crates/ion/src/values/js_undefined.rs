@@ -12,6 +12,9 @@ pub struct JsUndefined {
 }
 
 impl JsUndefined {
+    /// # SAFETY
+    ///
+    /// Skips checks for type conversion (TODO)
     pub unsafe fn cast_unchecked<T: FromJsValue>(self) -> T {
         T::from_js_value(&self.env, self.value).expect("Failed to cast JsUnknown")
     }
@@ -46,10 +49,7 @@ impl FromJsValue for JsUndefined {
         env: &Env,
         value: Value,
     ) -> crate::Result<Self> {
-        Ok(Self {
-            value,
-            env: env.clone(),
-        })
+        Ok(Self { value, env: *env })
     }
 }
 
@@ -58,7 +58,7 @@ impl ToJsValue for JsUndefined {
         _env: &Env,
         val: Self,
     ) -> crate::Result<Value> {
-        Ok(val.value.clone())
+        Ok(val.value)
     }
 }
 

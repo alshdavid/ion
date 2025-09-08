@@ -130,7 +130,7 @@ impl Module {
         }
 
         let module = module_map
-            .get_module_mut(&result.path.try_to_string().unwrap())
+            .get_module_mut(result.path.try_to_string().unwrap())
             .unwrap();
         module.status = ModuleStatus::Ready;
 

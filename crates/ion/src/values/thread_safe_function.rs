@@ -32,7 +32,7 @@ impl ThreadSafeFunction {
         });
 
         env.spawn_local({
-            let env = env.clone();
+            let env = *env;
             async move {
                 let ref_count = RefCounter::new(1);
                 let mut can_shutdown = env.shutdown_has_run();
@@ -151,6 +151,7 @@ impl Drop for ThreadSafeFunction {
     }
 }
 
+#[allow(clippy::type_complexity)]
 enum ThreadSafeFunctionEvent {
     Call {
         map_arguments: Box<dyn Fn(&Env) -> crate::Result<Vec<v8::Local<'static, v8::Value>>>>,

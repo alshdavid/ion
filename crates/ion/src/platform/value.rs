@@ -23,12 +23,6 @@ impl From<v8::Local<'_, v8::Value>> for Value {
     }
 }
 
-impl Into<v8::Local<'static, v8::Value>> for Value {
-    fn into(self) -> v8::Local<'static, v8::Value> {
-        self.inner()
-    }
-}
-
 impl Deref for Value {
     type Target = v8::Local<'static, v8::Value>;
 

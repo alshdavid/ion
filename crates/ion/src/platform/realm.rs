@@ -110,17 +110,17 @@ impl JsRealm {
         self.async_tasks().wait().await;
     }
 
-    pub fn env(&self) -> &Box<Env> {
+    pub fn env(&self) -> &Env {
         &self.env
     }
 
     pub fn notify_shutdown(&self) {
-        for on_before_exit in unsafe { &mut *self.env.on_before_exit }.into_iter() {
+        for on_before_exit in unsafe { &mut *self.env.on_before_exit }.iter_mut() {
             drop(on_before_exit());
         }
     }
 
-    pub fn background_blocking<'a, Return: 'static + Send + Sync>(
+    pub fn background_blocking<Return: 'static + Send + Sync>(
         &self,
         fut: impl 'static + Send + Sync + Future<Output = crate::Result<Return>>,
     ) -> crate::Result<Return> {
@@ -133,7 +133,7 @@ impl JsRealm {
         rx.recv()?
     }
 
-    pub fn background_async<'a>(
+    pub fn background_async(
         &self,
         fut: impl 'static + Send + Sync + Future<Output = crate::Result<()>>,
     ) -> crate::Result<()> {
@@ -142,7 +142,8 @@ impl JsRealm {
             .try_send(BackgroundWorkerEvent::ExecFut(Box::pin(fut)))?)
     }
 
-    pub(crate) fn module_map<'a>(&self) -> &mut ModuleMap {
+    #[allow(clippy::mut_from_ref)]
+    pub(crate) fn module_map(&self) -> &mut ModuleMap {
         unsafe { &mut *self.modules }
     }
 

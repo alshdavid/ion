@@ -575,11 +575,10 @@ dependencies = [
 
 [[package]]
 name = "ion"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async_fn_traits",
  "flume",
- "futures",
  "normalize-path",
  "num_cpus",
  "parking_lot",
@@ -611,24 +610,6 @@ name = "ion_examples"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "futures",
- "http",
- "http-body-util",
- "hyper",
- "hyper-util",
- "ion",
- "num_cpus",
- "tokio",
- "tokio-util",
- "v8",
-]
-
-[[package]]
-name = "ion_scratch"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "flume",
  "futures",
  "http",
  "http-body-util",

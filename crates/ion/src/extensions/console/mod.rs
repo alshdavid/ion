@@ -28,7 +28,7 @@ fn extension_hook(
                 let replacer = env.get_null()?;
                 let spaces = env.create_int32(2)?;
                 let result: JsString = json_stringify.call_with_args((arg, replacer, spaces))?;
-                args_string.push(format!("{}", result.get_string()?));
+                args_string.push((result.get_string()?).to_string());
             }
 
             let output = args_string.join(", ");
@@ -53,7 +53,7 @@ fn extension_hook(
                 let replacer = env.get_null()?;
                 let spaces = env.create_int32(2)?;
                 let result: JsString = json_stringify.call_with_args((arg, replacer, spaces))?;
-                args_string.push(format!("{}", result.get_string()?));
+                args_string.push((result.get_string()?).to_string());
             }
 
             let output = args_string.join(", ");
@@ -78,7 +78,7 @@ fn extension_hook(
                 let replacer = env.get_null()?;
                 let spaces = env.create_int32(2)?;
                 let result: JsString = json_stringify.call_with_args((arg, replacer, spaces))?;
-                args_string.push(format!("{}", result.get_string()?));
+                args_string.push((result.get_string()?).to_string());
             }
 
             let output = args_string.join(", ");

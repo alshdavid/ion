@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["./crates/*", "./examples", "./_scratch/scratch"]
+members = ["./crates/*", "./examples"]
 
 [workspace.lints.rust]
 elided_lifetimes_in_paths = "allow"
@@ -39,3 +39,5 @@ hyper = { version = "1.7.0", features = ["full"] }
 hyper-util = { version = "0.1.16", features = ["tokio"] }
 tokio-util = "0.7.16"
 num_cpus = "1.17.0"
+async_fn_traits = "0.1.1"
+rand = "0.9.2"

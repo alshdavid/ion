@@ -20,6 +20,7 @@ pub(crate) enum PlatformEvent {
         args: Vec<String>,
     },
     SpawnWorker {
+        #[allow(clippy::type_complexity)]
         resolve: Sender<(Sender<JsWorkerEvent>, Mutex<Option<JoinHandle<()>>>)>,
     },
     RegisterExtension(JsExtension, Sender<crate::Result<()>>),

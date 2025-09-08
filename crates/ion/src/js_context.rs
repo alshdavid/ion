@@ -71,9 +71,7 @@ impl JsContext {
     ) -> crate::Result<()> {
         let code = code.as_ref().to_string();
         self.exec_blocking(move |env| {
-            if let Err(err) = env.eval_script::<JsUnknown>(code) {
-                return Err(err);
-            }
+            env.eval_script::<JsUnknown>(code)?;
             Ok(())
         })
     }
@@ -86,7 +84,7 @@ impl JsContext {
         let (tx, rx) = bounded(1);
 
         self.tx.try_send(JsWorkerEvent::Import {
-            id: self.id.clone(),
+            id: self.id,
             specifier: path.as_ref().try_to_string()?,
             resolve: tx,
         })?;

@@ -73,7 +73,7 @@ impl JsFunction {
         Ok(Self {
             value: Value::from(value.cast()),
             this: None,
-            env: env.clone(),
+            env: *env,
         })
     }
 
@@ -165,7 +165,7 @@ impl FromJsValue for JsFunction {
         Ok(Self {
             value,
             this: None,
-            env: env.clone(),
+            env: *env,
         })
     }
 }
@@ -175,7 +175,7 @@ impl ToJsValue for JsFunction {
         _env: &Env,
         val: Self,
     ) -> crate::Result<Value> {
-        Ok(val.value.clone())
+        Ok(val.value)
     }
 }
 
@@ -201,6 +201,10 @@ impl<'a> JsFunctionCallContext<'a> {
 
     pub fn len(&self) -> i32 {
         self.args.length()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.args.length() == 0
     }
 }
 
