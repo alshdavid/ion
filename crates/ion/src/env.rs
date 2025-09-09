@@ -12,7 +12,6 @@ use crate::platform::Value;
 use crate::platform::background_worker::BackgroundWorkerEvent;
 use crate::platform::module::Module;
 use crate::platform::v8::RawContext;
-use crate::platform::v8::RawContextScope;
 use crate::platform::v8::RawGlobal;
 use crate::platform::v8::RawIsolate;
 use crate::utils::generate_random_string;
@@ -22,7 +21,6 @@ pub struct Env {
     pub(crate) inner: *mut Env,
     pub(crate) isolate: Rc<RawIsolate>,
     pub(crate) context: Rc<RawContext>,
-    pub(crate) context_scope: Rc<RawContextScope>,
     pub(crate) global_this: Rc<RawGlobal>,
     pub(crate) on_before_exit: RefCell<Vec<Rc<dyn 'static + Fn() -> crate::Result<()>>>>,
     pub(crate) shutdown_has_run: RefCell<bool>,
@@ -35,7 +33,6 @@ impl Env {
     pub(crate) fn new(
         isolate: Rc<RawIsolate>,
         context: Rc<RawContext>,
-        context_scope: Rc<RawContextScope>,
         global_this: Rc<RawGlobal>,
         async_tasks: *mut TaskTracker,
         background_tasks: *mut Sender<BackgroundWorkerEvent>,
@@ -48,7 +45,6 @@ impl Env {
         let mut env = Box::new(Env {
             isolate,
             context,
-            context_scope,
             global_this,
             async_tasks,
             background_tasks,

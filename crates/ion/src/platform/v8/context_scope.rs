@@ -13,21 +13,6 @@ impl RawContextScope {
     pub fn as_mut(&self) -> &mut v8::ContextScope<'static, v8::HandleScope<'static>> {
         unsafe { &mut *self.0 }
     }
-
-    /// Enter the context on the current thread
-    pub fn enter(&self) {
-        let ctx = self.as_mut();
-        unsafe {
-            ctx.enter();
-        };
-    }
-
-    pub fn exit(&self) {
-        let ctx = self.as_mut();
-        unsafe {
-            ctx.exit();
-        };
-    }
 }
 
 impl Deref for RawContextScope {

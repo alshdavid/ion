@@ -2,10 +2,8 @@
 use std::ffi::c_void;
 use std::ops::Deref;
 
-pub type v8_value = *mut c_void;
-
-#[derive(Debug, Clone, Copy)]
-pub struct Value(v8_value);
+#[derive(Debug)]
+pub struct Value(*mut c_void);
 
 impl Value {
     pub fn inner(&self) -> v8::Local<'static, v8::Value> {
@@ -28,5 +26,17 @@ impl Deref for Value {
 
     fn deref(&self) -> &Self::Target {
         unsafe { &*(self.0 as *mut v8::Local<'static, v8::Value>) }
+    }
+}
+
+impl Clone for Value {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+impl Drop for Value {
+    fn drop(&mut self) {
+        drop(unsafe { Box::from_raw(self.0 as *mut v8::Local<'static, v8::Value>) })
     }
 }

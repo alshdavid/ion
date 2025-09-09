@@ -1,5 +1,6 @@
 #![allow(clippy::module_inception)]
 pub mod background_worker;
+pub(crate) mod active_context;
 pub(crate) mod extension;
 pub mod module;
 pub mod module_map;
@@ -8,9 +9,8 @@ mod realm;
 mod reference;
 pub mod resolve;
 pub(crate) mod v8;
-pub mod value;
 pub(crate) mod worker;
 
 pub(crate) use realm::*;
 pub use reference::*;
-pub use value::*;
+pub use v8::Value;

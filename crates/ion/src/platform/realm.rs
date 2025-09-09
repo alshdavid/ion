@@ -27,24 +27,22 @@ pub struct JsRealm {
     pub(crate) async_tasks: *mut TaskTracker,
     // SAFETY: Changing the order of these properties
     // will affect their drop order and break the isolate
-    pub(crate) _global_this: Rc<RawGlobal>,
-    pub(crate) context_scope: Rc<RawContextScope>,
+    #[allow(unused)]
+    pub(crate) global_this: Rc<RawGlobal>,
+    #[allow(unused)]
     pub(crate) context: Rc<RawContext>,
-    pub(crate) _handle_scope: Rc<RawIsolateScope>,
-    pub(crate) _isolate: Rc<RawIsolate>,
 }
 
 impl JsRealm {
     pub(crate) fn new(
+        isolate: Rc<RawIsolate>,
         fs: FileSystem,
         resolvers: Vec<DynResolver>,
         background_tasks: Sender<BackgroundWorkerEvent>,
     ) -> Box<Self> {
-        let isolate = RawIsolate::new(v8::Isolate::new(v8::CreateParams::default()));
-
         let handle_scope = RawIsolateScope::new(v8::HandleScope::new(isolate.as_mut()));
 
-        let context = RawContext::new(&isolate, handle_scope.as_mut());
+        let context = RawContext::new(isolate.as_ref(), handle_scope.as_mut());
         let context_scope = RawContextScope::new(v8::ContextScope::new(
             handle_scope.as_mut(),
             context.as_inner(),
@@ -59,9 +57,8 @@ impl JsRealm {
         let background_tasks = Box::into_raw(Box::new(background_tasks));
 
         let env = Env::new(
-            Rc::clone(&isolate),
+            isolate,
             Rc::clone(&context),
-            Rc::clone(&context_scope),
             Rc::clone(&global_this),
             async_tasks_ptr,
             background_tasks,
@@ -76,11 +73,8 @@ impl JsRealm {
             resolvers,
             async_tasks: async_tasks_ptr,
             // v8 internals
-            _global_this: global_this,
+            global_this,
             context,
-            context_scope,
-            _handle_scope: handle_scope,
-            _isolate: isolate,
         });
 
         let realm_ptr = realm.as_mut() as *mut JsRealm;

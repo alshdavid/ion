@@ -1,3 +1,4 @@
+#![allow(warnings)]
 use flume::Sender;
 use flume::unbounded;
 
@@ -17,70 +18,70 @@ pub struct ThreadSafeFunction {
 
 impl ThreadSafeFunction {
     pub fn new(target: &JsFunction) -> crate::Result<Self> {
-        let value = target.value();
-        let env = target.env();
-        let scope = &mut env.scope();
+        todo!();
+        // let value = target.value();
+        // let env = target.env();
+        // let scope = &mut env.scope();
 
-        let handle = value.inner();
-        let inner = v8::Global::new(scope, handle);
+        // let handle = value.inner();
+        // let inner = v8::Global::new(scope, handle);
 
-        let (tx, rx) = unbounded::<ThreadSafeFunctionEvent>();
+        // let (tx, rx) = unbounded::<ThreadSafeFunctionEvent>();
 
-        env.on_before_exit({
-            let tx = tx.clone();
-            move || Ok(tx.try_send(ThreadSafeFunctionEvent::Shutdown)?)
-        });
+        // env.on_before_exit({
+        //     let tx = tx.clone();
+        //     move || Ok(tx.try_send(ThreadSafeFunctionEvent::Shutdown)?)
+        // });
 
-        env.spawn_local({
-            let env = env.clone();
-            async move {
-                let ref_count = RefCounter::new(1);
-                let mut can_shutdown = env.shutdown_has_run();
-                let inner = inner;
+        // env.spawn_local({
+        //     let env = env.clone();
+        //     async move {
+        //         let ref_count = RefCounter::new(1);
+        //         let mut can_shutdown = env.shutdown_has_run();
+        //         let inner = inner;
 
-                while let Ok(event) = rx.recv_async().await {
-                    match event {
-                        ThreadSafeFunctionEvent::Call {
-                            map_arguments,
-                            map_return,
-                        } => {
-                            env.context_scope.enter();
-                            let scope = &mut env.scope();
-                            let func = v8::Local::new(scope, inner.clone());
-                            let func = func.cast::<v8::Function>();
-                            let recv = v8::undefined(scope);
-                            let arguments = map_arguments(&env)?;
-                            let ret = match func.call(scope, recv.into(), &arguments) {
-                                Some(value) => value,
-                                None => v8::undefined(scope).into(),
-                            };
-                            let ret = JsUnknown::from_js_value(&env, Value::from(ret))?;
-                            map_return(&env, ret)?;
-                        }
-                        ThreadSafeFunctionEvent::Ref => {
-                            ref_count.inc();
-                        }
-                        ThreadSafeFunctionEvent::Unref => {
-                            if !ref_count.dec() {
-                                continue;
-                            }
-                            if can_shutdown {
-                                break;
-                            }
-                        }
-                        ThreadSafeFunctionEvent::Shutdown => {
-                            can_shutdown = true;
-                            if ref_count.count() == 0 {
-                                break;
-                            }
-                        }
-                    }
-                }
-                Ok(())
-            }
-        })?;
+        //         while let Ok(event) = rx.recv_async().await {
+        //             match event {
+        //                 ThreadSafeFunctionEvent::Call {
+        //                     map_arguments,
+        //                     map_return,
+        //                 } => {
+        //                     let scope = &mut env.scope();
+        //                     let func = v8::Local::new(scope, inner.clone());
+        //                     let func = func.cast::<v8::Function>();
+        //                     let recv = v8::undefined(scope);
+        //                     let arguments = map_arguments(&env)?;
+        //                     let ret = match func.call(scope, recv.into(), &arguments) {
+        //                         Some(value) => value,
+        //                         None => v8::undefined(scope).into(),
+        //                     };
+        //                     let ret = JsUnknown::from_js_value(&env, Value::from(ret))?;
+        //                     map_return(&env, ret)?;
+        //                 }
+        //                 ThreadSafeFunctionEvent::Ref => {
+        //                     ref_count.inc();
+        //                 }
+        //                 ThreadSafeFunctionEvent::Unref => {
+        //                     if !ref_count.dec() {
+        //                         continue;
+        //                     }
+        //                     if can_shutdown {
+        //                         break;
+        //                     }
+        //                 }
+        //                 ThreadSafeFunctionEvent::Shutdown => {
+        //                     can_shutdown = true;
+        //                     if ref_count.count() == 0 {
+        //                         break;
+        //                     }
+        //                 }
+        //             }
+        //         }
+        //         Ok(())
+        //     }
+        // })?;
 
-        Ok(Self { tx })
+        // Ok(Self { tx })
     }
 
     pub fn call<Args: JsValuesTupleIntoVec>(

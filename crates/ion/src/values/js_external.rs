@@ -68,7 +68,7 @@ impl<T> Clone for JsExternal<T> {
         self.ref_count.inc();
         println!("cloned Rust {}", self.ref_count.count() - 1);
         Self {
-            value: self.value,
+            value: self.value.clone(),
             env: self.env.clone(),
             ptr: self.ptr,
             ref_count: self.ref_count.clone(),
@@ -119,6 +119,6 @@ impl<T> ToJsValue for JsExternal<T> {
         _env: &Env,
         val: Self,
     ) -> crate::Result<Value> {
-        Ok(val.value)
+        Ok(val.value.clone())
     }
 }

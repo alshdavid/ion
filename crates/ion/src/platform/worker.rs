@@ -22,17 +22,19 @@ use crate::Error;
 use crate::JsExtension;
 use crate::ResolverContext;
 use crate::fs::FileSystem;
-use crate::platform::JsRealm;
-use crate::platform::background_worker::BackgroundWorkerEvent;
-use crate::platform::extension::Extension;
-use crate::platform::module::Module;
-use crate::platform::module_map::ModuleMap;
-use crate::platform::resolve::run_resolvers;
-use crate::platform::v8::RawIsolate;
 use crate::utils::HashMapExt;
 use crate::utils::PathExt;
 use crate::utils::channel::oneshot;
 use crate::utils::tokio_ext::LocalRuntimeExt;
+
+use super::JsRealm;
+use super::background_worker::BackgroundWorkerEvent;
+use super::active_context::ActiveContext;
+use super::extension::Extension;
+use super::module::Module;
+use super::module_map::ModuleMap;
+use super::resolve::run_resolvers;
+use super::v8::RawIsolate;
 
 pub(crate) enum JsWorkerEvent {
     CreateContext {
@@ -94,16 +96,26 @@ async fn worker_thread_async(
     extensions: Vec<Arc<JsExtension>>,
     resolvers: Vec<DynResolver>,
 ) -> crate::Result<()> {
-    // Maintain a store of contexts to help with cleanup on shutdown.
+    // One isolate per worker thread
+    let isolate = RawIsolate::new(v8::Isolate::new(v8::CreateParams::default()));
+    
+    // Used to switch between context scopes on the same thread
+    let mut active_context = ActiveContext::new(Rc::clone(&isolate));
+
+    // Maintain a store of Global<Context> to help with cleanup on shutdown.
     let mut realms = HashMap::<usize, Box<JsRealm>>::new();
     let fs = FileSystem::Physical;
 
     while let Ok(event) = rx.recv_async().await {
         match event {
             JsWorkerEvent::CreateContext { resolve } => {
-                let realm = JsRealm::new(fs.clone(), resolvers.clone(), tx_background.clone());
+                let realm = JsRealm::new(
+                    Rc::clone(&isolate),
+                    fs.clone(),
+                    resolvers.clone(),
+                    tx_background.clone(),
+                );
                 let realm_id = realm.id();
-                realm.context_scope.enter();
 
                 Extension::register_extensions(&realm, &extensions);
 
@@ -112,20 +124,22 @@ async fn worker_thread_async(
             }
             JsWorkerEvent::ShutdownContext { id, resolve } => {
                 let realm = realms.try_remove(&id)?;
+                active_context.set(&realm.context);
+                let Some((context_scope, handle_scope)) = active_context.take() else {
+                    panic!()
+                };
+
                 realm.notify_shutdown();
                 realm.drain_async_tasks().await;
 
-                realm.context_scope.exit();
-                let isolate = realm._isolate.as_mut() as *mut v8::Isolate;
-                unsafe {
-                    (*isolate).exit();
-                };
-
+                drop(context_scope);
+                drop(handle_scope);
                 resolve.try_send(())?;
             }
             JsWorkerEvent::Exec { id, callback } => {
                 let realm = realms.try_get(&id)?;
-                realm.context_scope.enter();
+                active_context.set(&realm.context);
+
                 if let Err(err) = callback(&realm.env()) {
                     // TODO global error handler
                     panic!("Callback errored {:?}", err)
@@ -147,10 +161,8 @@ async fn worker_thread_async(
             }
             JsWorkerEvent::Shutdown { resolve } => {
                 for (_id, realm) in realms {
-                    realm.context_scope.enter();
                     realm.notify_shutdown();
                     realm.drain_async_tasks().await;
-                    realm.context_scope.exit();
                 }
                 resolve.try_send(())?;
                 break;

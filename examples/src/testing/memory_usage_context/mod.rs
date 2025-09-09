@@ -15,15 +15,13 @@ pub fn main() -> anyhow::Result<()> {
     for i in 0..50 {
         {
             let worker = runtime.spawn_worker()?;
+
             {
                 let ctx0 = worker.create_context()?;
                 let ctx1 = worker.create_context()?;
-                // let ctx2 = worker.create_context()?;
-                // let ctx3 = worker.create_context()?;
+
                 drop(ctx0);
                 drop(ctx1);
-                // drop(ctx2);
-                // drop(ctx3);
             };
 
             worker.run_garbage_collection_for_testing()?;

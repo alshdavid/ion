@@ -22,6 +22,10 @@ impl RawContext {
     pub fn as_inner(&self) -> v8::Local<'static, v8::Context> {
         unsafe { *self.0 }
     }
+
+    pub fn address(&self) -> usize {
+        self.0 as usize
+    }
 }
 
 impl Deref for RawContext {
