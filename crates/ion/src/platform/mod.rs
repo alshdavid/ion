@@ -1,6 +1,6 @@
 #![allow(clippy::module_inception)]
-pub mod background_worker;
 pub(crate) mod active_context;
+pub mod background_worker;
 pub(crate) mod extension;
 pub mod module;
 pub mod module_map;

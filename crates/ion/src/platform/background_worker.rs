@@ -1,56 +1,78 @@
 use std::pin::Pin;
-use std::sync::Mutex;
 use std::thread::JoinHandle;
 use std::thread::{self};
 
-use flume::Receiver;
 use flume::Sender;
 use flume::unbounded;
 
-pub(crate) enum BackgroundWorkerEvent {
-    ExecFut(Pin<Box<dyn 'static + Send + Sync + Future<Output = crate::Result<()>>>>),
+use crate::utils::channel::oneshot;
+
+pub(crate) enum BackgroundTaskManagerEvent {
+    ExecFut {
+        fut: Pin<Box<dyn 'static + Send + Sync + Future<Output = crate::Result<()>>>>,
+    },
 }
 
-impl std::fmt::Debug for BackgroundWorkerEvent {
-    fn fmt(
-        &self,
-        f: &mut std::fmt::Formatter<'_>,
-    ) -> std::fmt::Result {
-        match self {
-            Self::ExecFut(_) => write!(f, "ExecFut"),
-        }
-    }
+pub struct BackgroundTaskManager {
+    tx: Sender<BackgroundTaskManagerEvent>,
+    handle: JoinHandle<crate::Result<()>>,
 }
 
-pub(crate) fn start_background_worker_thread()
--> (Sender<BackgroundWorkerEvent>, Mutex<Option<JoinHandle<()>>>) {
-    let (tx, rx) = unbounded::<BackgroundWorkerEvent>();
+impl BackgroundTaskManager {
+    pub fn new() -> crate::Result<Self> {
+        let (tx, rx) = unbounded::<BackgroundTaskManagerEvent>();
 
-    let handle = thread::spawn({
-        move || {
-            tokio::runtime::Builder::new_multi_thread()
-                .worker_threads(num_cpus::get_physical())
-                .enable_all()
-                .build()
-                .unwrap()
-                .block_on(background_worker_thread_async(rx))
-                .unwrap();
-        }
-    });
+        let (bg_tx, bg_rx) = oneshot::<crate::Result<()>>();
+        let handle: JoinHandle<crate::Result<()>> = thread::spawn({
+            move || {
+                let Ok(runtime) = tokio::runtime::Builder::new_multi_thread()
+                    .worker_threads(num_cpus::get_physical())
+                    .enable_all()
+                    .build()
+                else {
+                    bg_tx
+                        .send(Err(crate::Error::BackgroundThreadError))
+                        .expect("Unable to start background thread");
 
-    (tx, Mutex::new(Some(handle)))
-}
+                    return Err(crate::Error::BackgroundThreadError);
+                };
 
-async fn background_worker_thread_async(rx: Receiver<BackgroundWorkerEvent>) -> crate::Result<()> {
-    while let Ok(event) = rx.recv_async().await {
-        tokio::task::spawn(async move {
-            match event {
-                BackgroundWorkerEvent::ExecFut(future) => {
-                    future.await.unwrap();
-                }
+                bg_tx
+                    .send(Ok(()))
+                    .expect("Unable to start background thread");
+
+                runtime.block_on(async move {
+                    while let Ok(event) = rx.recv_async().await {
+                        match event {
+                            BackgroundTaskManagerEvent::ExecFut { fut } => {
+                                tokio::task::spawn(fut);
+                            }
+                        }
+                    }
+                    Ok(())
+                })
             }
         });
+        bg_rx.recv()??;
+
+        Ok(Self { tx, handle })
     }
 
-    Ok(())
+    pub fn spawn(
+        &self,
+        fut: impl 'static + Send + Sync + Future<Output = crate::Result<()>>,
+    ) -> crate::Result<()> {
+        Ok(self
+            .tx
+            .try_send(BackgroundTaskManagerEvent::ExecFut { fut: Box::pin(fut) })?)
+    }
+
+    pub fn spawn_then(
+        &self,
+        fut: impl 'static + Send + Sync + Future<Output = crate::Result<()>>,
+    ) -> crate::Result<()> {
+        Ok(self
+            .tx
+            .try_send(BackgroundTaskManagerEvent::ExecFut { fut: Box::pin(fut) })?)
+    }
 }

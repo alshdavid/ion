@@ -18,70 +18,90 @@ pub struct ThreadSafeFunction {
 
 impl ThreadSafeFunction {
     pub fn new(target: &JsFunction) -> crate::Result<Self> {
-        todo!();
-        // let value = target.value();
-        // let env = target.env();
-        // let scope = &mut env.scope();
+        let value = target.value();
+        let env = target.env();
+        let scope = &mut env.scope();
 
-        // let handle = value.inner();
-        // let inner = v8::Global::new(scope, handle);
+        // Create threadsafe function with an initial refcount of 1
+        env.inc_ref();
 
-        // let (tx, rx) = unbounded::<ThreadSafeFunctionEvent>();
+        // SAFETY: Force function to be Send + Sync
+        let handle = value.inner();
+        let inner = v8::Global::new(scope, handle);
+        let inner = Box::new(inner);
+        let inner = Box::into_raw(Box::new(inner));
+        let inner = inner as usize;
 
-        // env.on_before_exit({
-        //     let tx = tx.clone();
-        //     move || Ok(tx.try_send(ThreadSafeFunctionEvent::Shutdown)?)
-        // });
+        let (tx, rx) = unbounded::<ThreadSafeFunctionEvent>();
 
-        // env.spawn_local({
-        //     let env = env.clone();
-        //     async move {
-        //         let ref_count = RefCounter::new(1);
-        //         let mut can_shutdown = env.shutdown_has_run();
-        //         let inner = inner;
+        env.spawn_background(move |env| {
+            Box::pin(async move {
+                let inner = inner;
 
-        //         while let Ok(event) = rx.recv_async().await {
-        //             match event {
-        //                 ThreadSafeFunctionEvent::Call {
-        //                     map_arguments,
-        //                     map_return,
-        //                 } => {
-        //                     let scope = &mut env.scope();
-        //                     let func = v8::Local::new(scope, inner.clone());
-        //                     let func = func.cast::<v8::Function>();
-        //                     let recv = v8::undefined(scope);
-        //                     let arguments = map_arguments(&env)?;
-        //                     let ret = match func.call(scope, recv.into(), &arguments) {
-        //                         Some(value) => value,
-        //                         None => v8::undefined(scope).into(),
-        //                     };
-        //                     let ret = JsUnknown::from_js_value(&env, Value::from(ret))?;
-        //                     map_return(&env, ret)?;
-        //                 }
-        //                 ThreadSafeFunctionEvent::Ref => {
-        //                     ref_count.inc();
-        //                 }
-        //                 ThreadSafeFunctionEvent::Unref => {
-        //                     if !ref_count.dec() {
-        //                         continue;
-        //                     }
-        //                     if can_shutdown {
-        //                         break;
-        //                     }
-        //                 }
-        //                 ThreadSafeFunctionEvent::Shutdown => {
-        //                     can_shutdown = true;
-        //                     if ref_count.count() == 0 {
-        //                         break;
-        //                     }
-        //                 }
-        //             }
-        //         }
-        //         Ok(())
-        //     }
-        // })?;
+                while let Ok(event) = rx.recv_async().await {
+                    match event {
+                        ThreadSafeFunctionEvent::Call {
+                            map_arguments,
+                            map_return,
+                        } => {
+                            env.exec(move |env| {
+                                let scope = &mut env.scope();
 
-        // Ok(Self { tx })
+                                let inner = inner as *mut Box<v8::Local<'static, v8::Function>>;
+                                let inner = unsafe { &*inner };
+
+                                let map_arguments = map_arguments
+                                    as *mut Box<
+                                        dyn Fn(
+                                            &Env,
+                                        )
+                                            -> crate::Result<Vec<v8::Local<'static, v8::Value>>>,
+                                    >;
+                                let map_arguments = unsafe { *Box::from_raw(map_arguments) };
+                                let arguments = map_arguments(&env)?;
+
+                                let map_return = map_return
+                                    as *mut Box<dyn Fn(&Env, JsUnknown) -> crate::Result<()>>;
+                                let map_return = unsafe { *Box::from_raw(map_return) };
+
+                                let recv = v8::undefined(scope);
+                                let ret = inner.call(scope, recv.into(), &arguments).unwrap();
+
+                                let ret = JsUnknown::from_js_value(&env, Value::from(ret))?;
+                                map_return(&env, ret)?;
+
+                                Ok(())
+                            })?;
+                        }
+                        ThreadSafeFunctionEvent::Ref => {
+                            env.exec_async(move |env| {
+                                env.inc_ref();
+                                Ok(())
+                            }).await?;
+                        }
+                        ThreadSafeFunctionEvent::Unref => {
+                            env.exec_async(move |env| {
+                                env.dec_ref();
+                                Ok(())
+                            }).await?;
+                        }
+                    };
+                }
+
+                // Clean up
+                env.exec_async(move |env| {
+                    let inner = inner as *mut Box<v8::Global<v8::Function>>;
+                    let inner = unsafe { Box::from_raw(inner) };
+
+                    Ok(())
+                })
+                .await?;
+
+                Ok(())
+            })
+        })?;
+
+        Ok(Self { tx })
     }
 
     pub fn call<Args: JsValuesTupleIntoVec>(
@@ -89,15 +109,30 @@ impl ThreadSafeFunction {
         map_arguments: impl 'static + Fn(&Env) -> crate::Result<Args>,
         map_return: impl 'static + Fn(&Env, JsUnknown) -> crate::Result<()>,
     ) -> crate::Result<()> {
+        let map_arguments: Box<
+            Box<dyn Fn(&Env) -> crate::Result<Vec<v8::Local<'static, v8::Value>>>>,
+        > = Box::new(Box::new(
+            move |env| -> crate::Result<Vec<v8::Local<'static, v8::Value>>> {
+                let mut result = vec![];
+                for value in map_arguments(env)?.into_vec(env)? {
+                    result.push(value.into_inner());
+                }
+                Ok(result)
+            },
+        ));
+        let map_arguments = Box::into_raw(map_arguments);
+        let map_arguments = map_arguments as usize;
+
+        let map_return: Box<Box<dyn Fn(&Env, JsUnknown) -> crate::Result<()>>> =
+            Box::new(Box::new(move |env, ret| -> crate::Result<()> {
+                map_return(env, ret)
+            }));
+        let map_return = Box::into_raw(map_return);
+        let map_return = map_return as usize;
+
         self.tx.try_send(ThreadSafeFunctionEvent::Call {
-            map_arguments: Box::new(move |env| {
-                Ok(map_arguments(env)?
-                    .into_vec(env)?
-                    .iter()
-                    .map(|v| v.inner())
-                    .collect::<Vec<_>>())
-            }),
-            map_return: Box::new(move |env, ret| map_return(env, ret)),
+            map_arguments,
+            map_return,
         })?;
         Ok(())
     }
@@ -155,13 +190,15 @@ impl Drop for ThreadSafeFunction {
 
 #[allow(clippy::type_complexity)]
 enum ThreadSafeFunctionEvent {
+    /// Force callbacks to be Send + Sync
     Call {
-        map_arguments: Box<dyn Fn(&Env) -> crate::Result<Vec<v8::Local<'static, v8::Value>>>>,
-        map_return: Box<dyn Fn(&Env, JsUnknown) -> crate::Result<()>>,
+        /// Box<dyn Fn(&Env) -> crate::Result<Vec<v8::Local<'static, v8::Value>>>>
+        map_arguments: usize,
+        /// Box<dyn Fn(&Env, JsUnknown) -> crate::Result<()>>
+        map_return: usize,
     },
     Ref,
     Unref,
-    Shutdown,
 }
 
 pub mod map_arguments {
@@ -176,10 +213,7 @@ pub mod map_return {
     use crate::Env;
     use crate::JsUnknown;
 
-    pub fn noop(
-        _env: &Env,
-        _ret: JsUnknown,
-    ) -> crate::Result<()> {
+    pub fn noop(_env: &Env, _ret: JsUnknown) -> crate::Result<()> {
         Ok(())
     }
 }

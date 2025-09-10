@@ -9,9 +9,9 @@ use std::thread::JoinHandle;
 use flume::Sender;
 use flume::unbounded;
 
+use crate::platform::background_worker::BackgroundTaskManager;
 use crate::DynResolver;
 use crate::JsExtension;
-use crate::platform::background_worker::start_background_worker_thread;
 use crate::platform::worker::JsWorkerEvent;
 use crate::platform::worker::start_js_worker_thread;
 
@@ -21,7 +21,10 @@ pub(crate) enum PlatformEvent {
     },
     SpawnWorker {
         #[allow(clippy::type_complexity)]
-        resolve: Sender<(Sender<JsWorkerEvent>, Mutex<Option<JoinHandle<()>>>)>,
+        resolve: Sender<(
+            Sender<JsWorkerEvent>,
+            Mutex<Option<JoinHandle<crate::Result<()>>>>,
+        )>,
     },
     RegisterExtension(JsExtension, Sender<crate::Result<()>>),
     RegisterResolver {
@@ -38,7 +41,7 @@ pub(crate) static PLATFORM: LazyLock<Sender<PlatformEvent>> = LazyLock::new(|| {
     // Dedicated thread for the v8 platform
     // All Isolates need to be in this thread or in children threads of this thread
     thread::spawn(move || {
-        let (tx_background, _) = start_background_worker_thread();
+        let background_task_manager = Arc::new(BackgroundTaskManager::new().unwrap());
 
         let mut extensions = Vec::<Arc<JsExtension>>::new();
         let mut resolvers = Vec::<DynResolver>::new();
@@ -67,7 +70,7 @@ pub(crate) static PLATFORM: LazyLock<Sender<PlatformEvent>> = LazyLock::new(|| {
                 }
                 PlatformEvent::SpawnWorker { resolve } => {
                     let (tx, handle) = start_js_worker_thread(
-                        tx_background.clone(),
+                        background_task_manager.clone(),
                         extensions.clone(),
                         resolvers.clone(),
                     );

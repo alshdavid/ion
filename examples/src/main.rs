@@ -30,6 +30,7 @@ fn main() -> anyhow::Result<()> {
         "testing_memory_usage_context" => testing::memory_usage_context::main(),
         "testing_multiple_workers" => testing::multiple_workers::main(),
         "testing_multiple_contexts" => testing::multiple_contexts::main(),
+        "testing_background_tasks" => testing::background_tasks::main(),
         _ => Err(anyhow::anyhow!("No example for: \"{}\"", example)),
     }
 }

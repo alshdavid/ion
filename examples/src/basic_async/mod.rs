@@ -1,35 +1,36 @@
-use ion::*;
+// use ion::*;
 
 pub fn main() -> anyhow::Result<()> {
-    let runtime = JsRuntime::initialize_once()?;
 
-    // Create an isolate running on a dedicated thread
-    let worker = runtime.spawn_worker()?;
-    let ctx = worker.create_context()?;
+    // let runtime = JsRuntime::initialize_once()?;
 
-    ctx.exec_blocking(|env| {
-        // Spawn an future on the event loop
-        env.spawn_local({
-            let env = env.clone();
-            async move {
-                println!("Async Task Started");
+    // // Create an isolate running on a dedicated thread
+    // let worker = runtime.spawn_worker()?;
+    // let ctx = worker.create_context()?;
 
-                // Evaluate arbitrary JavaScript, the result of the last line is returned
-                let value = env.eval_script::<JsNumber>("1 + 1")?;
+    // ctx.exec_blocking(|env| {
+    //     // Spawn an future on the event loop
+    //     env.spawn_local({
+    //         let env = env.clone();
+    //         async move {
+    //             println!("Async Task Started");
 
-                // Wait for some time
-                tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+    //             // Evaluate arbitrary JavaScript, the result of the last line is returned
+    //             let value = env.eval_script::<JsNumber>("1 + 1")?;
 
-                // Cast to Rust type
-                let result = value.get_u32()?;
-                println!("Async Task Returned: {}", result);
+    //             // Wait for some time
+    //             tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
 
-                Ok(())
-            }
-        })?;
+    //             // Cast to Rust type
+    //             let result = value.get_u32()?;
+    //             println!("Async Task Returned: {}", result);
 
-        Ok(())
-    })?;
+    //             Ok(())
+    //         }
+    //     })?;
+
+    //     Ok(())
+    // })?;
 
     Ok(())
 }

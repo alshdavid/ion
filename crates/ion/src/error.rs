@@ -26,6 +26,7 @@ pub enum Error {
     ResolveError,
     NewInstanceError,
     PromiseResolveError,
+    BackgroundThreadError,
     FileNotFound(String),
 }
 

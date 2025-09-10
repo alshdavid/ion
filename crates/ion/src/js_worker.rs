@@ -26,13 +26,13 @@ use super::JsContext;
 #[derive(Debug)]
 pub struct JsWorker {
     tx: Sender<JsWorkerEvent>,
-    handle: Mutex<Option<JoinHandle<()>>>,
+    handle: Mutex<Option<JoinHandle<crate::Result<()>>>>,
 }
 
 impl JsWorker {
     pub(crate) fn new(
         tx: Sender<JsWorkerEvent>,
-        handle: Mutex<Option<JoinHandle<()>>>,
+        handle: Mutex<Option<JoinHandle<crate::Result<()>>>>,
     ) -> Self {
         JsWorker { tx, handle }
     }
@@ -77,17 +77,17 @@ impl Drop for JsWorker {
 
         if self
             .tx
-            .send(JsWorkerEvent::Shutdown { resolve: tx })
+            .send(JsWorkerEvent::RequestShutdown { resolve: tx })
             .is_err()
         {
             panic!("Cannot drop JsWorker 1");
             return;
         };
 
-        if rx.recv().is_err() {
-            panic!("Cannot drop JsWorker 2");
-            return;
-        }
+        // if rx.recv().is_err() {
+        //     panic!("Cannot drop JsWorker 2");
+        //     return;
+        // }
 
         let Ok(mut handle) = self.handle.lock() else {
             panic!("Cannot drop JsWorker 3");
@@ -95,7 +95,7 @@ impl Drop for JsWorker {
         };
 
         if let Some(handle) = handle.take() {
-            drop(handle);
+            handle.join().unwrap();
         }
     }
 }

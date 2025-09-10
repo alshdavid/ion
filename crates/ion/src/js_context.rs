@@ -8,7 +8,6 @@ use crate::Error;
 use crate::JsUnknown;
 use crate::platform::worker::JsWorkerEvent;
 use crate::utils::PathExt;
-use crate::utils::channel::oneshot;
 
 /// This is a handle to a v8::Context
 #[derive(Debug, Clone)]
@@ -99,21 +98,14 @@ impl JsContext {
 
 impl Drop for JsContext {
     fn drop(&mut self) {
-        let (tx, rx) = oneshot();
-
         if self
             .tx
-            .send(JsWorkerEvent::ShutdownContext {
+            .send(JsWorkerEvent::RequestContextShutdown {
                 id: self.id,
-                resolve: tx,
             })
             .is_err()
         {
             panic!("Cannot drop JsContext 1")
         };
-
-        if rx.recv().is_err() {
-            panic!("Cannot drop JsContext 2")
-        }
     }
 }

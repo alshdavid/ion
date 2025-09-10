@@ -13,6 +13,10 @@ impl Value {
     pub fn address(&self) -> usize {
         self.0 as usize
     }
+
+    pub fn into_inner(self) -> v8::Local<'static, v8::Value> {
+        unsafe { *Box::from_raw(self.0 as *mut v8::Local<'static, v8::Value>) }
+    }
 }
 
 impl From<v8::Local<'_, v8::Value>> for Value {
@@ -35,8 +39,9 @@ impl Clone for Value {
     }
 }
 
-impl Drop for Value {
-    fn drop(&mut self) {
-        drop(unsafe { Box::from_raw(self.0 as *mut v8::Local<'static, v8::Value>) })
-    }
-}
+// TODO memory leak
+// impl Drop for Value {
+//     fn drop(&mut self) {
+//         drop(unsafe { Box::from_raw(self.0 as *mut v8::Local<'static, v8::Value>) })
+//     }
+// }

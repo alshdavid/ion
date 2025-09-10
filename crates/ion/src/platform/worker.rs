@@ -16,6 +16,7 @@ use flume::unbounded;
 use tokio_util::task::TaskTracker;
 use v8::Isolate;
 
+use crate::platform::background_worker::BackgroundTaskManager;
 use crate::DynResolver;
 use crate::Env;
 use crate::Error;
@@ -28,7 +29,6 @@ use crate::utils::channel::oneshot;
 use crate::utils::tokio_ext::LocalRuntimeExt;
 
 use super::JsRealm;
-use super::background_worker::BackgroundWorkerEvent;
 use super::active_context::ActiveContext;
 use super::extension::Extension;
 use super::module::Module;
@@ -40,9 +40,11 @@ pub(crate) enum JsWorkerEvent {
     CreateContext {
         resolve: Sender<(usize, Sender<JsWorkerEvent>)>,
     },
-    ShutdownContext {
+    BackgroundTaskComplete {
+        id: usize
+    },
+    RequestContextShutdown {
         id: usize,
-        resolve: Sender<()>,
     },
     Exec {
         id: usize,
@@ -53,7 +55,7 @@ pub(crate) enum JsWorkerEvent {
         specifier: String,
         resolve: Sender<()>,
     },
-    Shutdown {
+    RequestShutdown {
         resolve: Sender<()>,
     },
     RunGarbageCollectionForTesting {
@@ -63,42 +65,34 @@ pub(crate) enum JsWorkerEvent {
 
 // Create a dedicated thread to host the isolate
 pub(crate) fn start_js_worker_thread(
-    tx_background: Sender<BackgroundWorkerEvent>,
+    background_task_manager: Arc<BackgroundTaskManager>,
     extensions: Vec<Arc<JsExtension>>,
     resolvers: Vec<DynResolver>,
-) -> (Sender<JsWorkerEvent>, Mutex<Option<JoinHandle<()>>>) {
+) -> (
+    Sender<JsWorkerEvent>,
+    Mutex<Option<JoinHandle<crate::Result<()>>>>,
+) {
     let (tx, rx) = unbounded::<JsWorkerEvent>();
 
-    let handle = thread::spawn({
+    // Start a thread for the Isolate
+    let handle: JoinHandle<crate::Result<()>> = thread::spawn({
         let tx: Sender<JsWorkerEvent> = tx.clone();
-        move || {
-            tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .unwrap()
-                .local_block_on(worker_thread_async(
-                    tx,
-                    rx,
-                    tx_background,
-                    extensions,
-                    resolvers,
-                ));
-        }
+        move || worker_thread(tx, rx, background_task_manager, extensions, resolvers)
     });
 
     (tx, Mutex::new(Some(handle)))
 }
 
-async fn worker_thread_async(
+fn worker_thread(
     tx: Sender<JsWorkerEvent>,
     rx: Receiver<JsWorkerEvent>,
-    tx_background: Sender<BackgroundWorkerEvent>,
+    background_task_manager: Arc<BackgroundTaskManager>,
     extensions: Vec<Arc<JsExtension>>,
     resolvers: Vec<DynResolver>,
 ) -> crate::Result<()> {
     // One isolate per worker thread
     let isolate = RawIsolate::new(v8::Isolate::new(v8::CreateParams::default()));
-    
+
     // Used to switch between context scopes on the same thread
     let mut active_context = ActiveContext::new(Rc::clone(&isolate));
 
@@ -106,14 +100,17 @@ async fn worker_thread_async(
     let mut realms = HashMap::<usize, Box<JsRealm>>::new();
     let fs = FileSystem::Physical;
 
-    while let Ok(event) = rx.recv_async().await {
+    let mut shutdown_requested = false;
+
+    while let Ok(event) = rx.recv() {
         match event {
             JsWorkerEvent::CreateContext { resolve } => {
                 let realm = JsRealm::new(
                     Rc::clone(&isolate),
                     fs.clone(),
                     resolvers.clone(),
-                    tx_background.clone(),
+                    background_task_manager.clone(),
+                    tx.clone(),
                 );
                 let realm_id = realm.id();
 
@@ -122,7 +119,17 @@ async fn worker_thread_async(
                 realms.insert(realm_id.clone(), realm);
                 resolve.try_send((realm_id, tx.clone()))?;
             }
-            JsWorkerEvent::ShutdownContext { id, resolve } => {
+            JsWorkerEvent::RequestContextShutdown { id } => {
+                // If there are async tasks pending then wait for them to complete
+                {
+                    let realm = realms.try_get_mut(&id)?;
+                    let mut realm_shutdown_requested = realm.shutdown_requested.borrow_mut();
+                    (*realm_shutdown_requested) = true;
+                    if realm.global_refs.count() != 0 {
+                        continue;
+                    }
+                };
+
                 let realm = realms.try_remove(&id)?;
                 active_context.set(&realm.context);
                 let Some((context_scope, handle_scope)) = active_context.take() else {
@@ -130,11 +137,13 @@ async fn worker_thread_async(
                 };
 
                 realm.notify_shutdown();
-                realm.drain_async_tasks().await;
 
                 drop(context_scope);
                 drop(handle_scope);
-                resolve.try_send(())?;
+
+                if shutdown_requested && realms.is_empty() {
+                    break
+                }
             }
             JsWorkerEvent::Exec { id, callback } => {
                 let realm = realms.try_get(&id)?;
@@ -144,6 +153,15 @@ async fn worker_thread_async(
                     // TODO global error handler
                     panic!("Callback errored {:?}", err)
                 };
+            }
+            JsWorkerEvent::BackgroundTaskComplete { id } => {
+                let realm = realms.try_get(&id)?;
+                let mut realm_shutdown_requested = realm.shutdown_requested.borrow();
+                if *realm_shutdown_requested && realm.global_refs.count() == 0 {
+                    tx.try_send(JsWorkerEvent::RequestContextShutdown{
+                        id
+                    })?;
+                }
             }
             JsWorkerEvent::Import {
                 id,
@@ -159,13 +177,11 @@ async fn worker_thread_async(
 
                 let result = resolve.try_send(())?;
             }
-            JsWorkerEvent::Shutdown { resolve } => {
-                for (_id, realm) in realms {
-                    realm.notify_shutdown();
-                    realm.drain_async_tasks().await;
+            JsWorkerEvent::RequestShutdown { resolve } => {
+                shutdown_requested = true;
+                if realms.is_empty() {
+                    break
                 }
-                resolve.try_send(())?;
-                break;
             }
             JsWorkerEvent::RunGarbageCollectionForTesting { resolve } => {
                 // isolate.request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
