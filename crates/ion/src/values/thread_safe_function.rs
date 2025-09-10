@@ -50,19 +50,7 @@ impl ThreadSafeFunction {
                                 let inner = inner as *mut Box<v8::Local<'static, v8::Function>>;
                                 let inner = unsafe { &*inner };
 
-                                let map_arguments = map_arguments
-                                    as *mut Box<
-                                        dyn Fn(
-                                            &Env,
-                                        )
-                                            -> crate::Result<Vec<v8::Local<'static, v8::Value>>>,
-                                    >;
-                                let map_arguments = unsafe { *Box::from_raw(map_arguments) };
                                 let arguments = map_arguments(&env)?;
-
-                                let map_return = map_return
-                                    as *mut Box<dyn Fn(&Env, JsUnknown) -> crate::Result<()>>;
-                                let map_return = unsafe { *Box::from_raw(map_return) };
 
                                 let recv = v8::undefined(scope);
                                 let ret = inner.call(scope, recv.into(), &arguments).unwrap();
@@ -77,13 +65,15 @@ impl ThreadSafeFunction {
                             env.exec_async(move |env| {
                                 env.inc_ref();
                                 Ok(())
-                            }).await?;
+                            })
+                            .await?;
                         }
                         ThreadSafeFunctionEvent::Unref => {
                             env.exec_async(move |env| {
                                 env.dec_ref();
                                 Ok(())
-                            }).await?;
+                            })
+                            .await?;
                         }
                     };
                 }
@@ -106,41 +96,28 @@ impl ThreadSafeFunction {
 
     pub fn call<Args: JsValuesTupleIntoVec>(
         &self,
-        map_arguments: impl 'static + Fn(&Env) -> crate::Result<Args>,
-        map_return: impl 'static + Fn(&Env, JsUnknown) -> crate::Result<()>,
+        map_arguments: impl 'static + Send + Sync + FnOnce(&Env) -> crate::Result<Args>,
+        map_return: impl 'static + Send + Sync + FnOnce(&Env, JsUnknown) -> crate::Result<()>,
     ) -> crate::Result<()> {
-        let map_arguments: Box<
-            Box<dyn Fn(&Env) -> crate::Result<Vec<v8::Local<'static, v8::Value>>>>,
-        > = Box::new(Box::new(
-            move |env| -> crate::Result<Vec<v8::Local<'static, v8::Value>>> {
-                let mut result = vec![];
-                for value in map_arguments(env)?.into_vec(env)? {
-                    result.push(value.into_inner());
-                }
-                Ok(result)
-            },
-        ));
-        let map_arguments = Box::into_raw(map_arguments);
-        let map_arguments = map_arguments as usize;
-
-        let map_return: Box<Box<dyn Fn(&Env, JsUnknown) -> crate::Result<()>>> =
-            Box::new(Box::new(move |env, ret| -> crate::Result<()> {
-                map_return(env, ret)
-            }));
-        let map_return = Box::into_raw(map_return);
-        let map_return = map_return as usize;
-
         self.tx.try_send(ThreadSafeFunctionEvent::Call {
-            map_arguments,
-            map_return,
+            map_arguments: Box::new(
+                move |env| -> crate::Result<Vec<v8::Local<'static, v8::Value>>> {
+                    let mut result = vec![];
+                    for value in map_arguments(env)?.into_vec(env)? {
+                        result.push(value.inner());
+                    }
+                    Ok(result)
+                },
+            ),
+            map_return: Box::new(move |env, ret| -> crate::Result<()> { map_return(env, ret) }),
         })?;
         Ok(())
     }
 
-    pub fn call_blocking<Args: JsValuesTupleIntoVec, Return: 'static>(
+    pub fn call_blocking<Args: JsValuesTupleIntoVec, Return: 'static + Send + Sync>(
         &self,
-        map_arguments: impl 'static + Fn(&Env) -> crate::Result<Args>,
-        map_return: impl 'static + Fn(&Env, JsUnknown) -> crate::Result<Return>,
+        map_arguments: impl 'static + Send + Sync + FnOnce(&Env) -> crate::Result<Args>,
+        map_return: impl 'static + Send + Sync + FnOnce(&Env, JsUnknown) -> crate::Result<Return>,
     ) -> crate::Result<Return> {
         let (tx, rx) = oneshot();
         self.call(map_arguments, move |env, ret| {
@@ -149,10 +126,10 @@ impl ThreadSafeFunction {
         rx.recv()?
     }
 
-    pub async fn call_async<Args: JsValuesTupleIntoVec, Return: 'static>(
+    pub async fn call_async<Args: JsValuesTupleIntoVec, Return: 'static + Send + Sync>(
         &self,
-        map_arguments: impl 'static + Fn(&Env) -> crate::Result<Args>,
-        map_return: impl 'static + Fn(&Env, JsUnknown) -> crate::Result<Return>,
+        map_arguments: impl 'static + Send + Sync + FnOnce(&Env) -> crate::Result<Args>,
+        map_return: impl 'static + Send + Sync + FnOnce(&Env, JsUnknown) -> crate::Result<Return>,
     ) -> crate::Result<Return> {
         let (tx, rx) = oneshot();
         self.call(map_arguments, move |env, ret| {
@@ -190,12 +167,11 @@ impl Drop for ThreadSafeFunction {
 
 #[allow(clippy::type_complexity)]
 enum ThreadSafeFunctionEvent {
-    /// Force callbacks to be Send + Sync
     Call {
-        /// Box<dyn Fn(&Env) -> crate::Result<Vec<v8::Local<'static, v8::Value>>>>
-        map_arguments: usize,
-        /// Box<dyn Fn(&Env, JsUnknown) -> crate::Result<()>>
-        map_return: usize,
+        map_arguments: Box<
+            dyn Send + Sync + FnOnce(&Env) -> crate::Result<Vec<v8::Local<'static, v8::Value>>>,
+        >,
+        map_return: Box<dyn Send + Sync + FnOnce(&Env, JsUnknown) -> crate::Result<()>>,
     },
     Ref,
     Unref,
@@ -213,7 +189,10 @@ pub mod map_return {
     use crate::Env;
     use crate::JsUnknown;
 
-    pub fn noop(_env: &Env, _ret: JsUnknown) -> crate::Result<()> {
+    pub fn noop(
+        _env: &Env,
+        _ret: JsUnknown,
+    ) -> crate::Result<()> {
         Ok(())
     }
 }

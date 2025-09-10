@@ -9,9 +9,9 @@ use std::thread::JoinHandle;
 use flume::Sender;
 use flume::unbounded;
 
-use crate::platform::background_worker::BackgroundTaskManager;
 use crate::DynResolver;
 use crate::JsExtension;
+use crate::platform::background_worker::BackgroundTaskManager;
 use crate::platform::worker::JsWorkerEvent;
 use crate::platform::worker::start_js_worker_thread;
 

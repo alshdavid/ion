@@ -15,6 +15,7 @@ pub(crate) enum BackgroundTaskManagerEvent {
 
 pub struct BackgroundTaskManager {
     tx: Sender<BackgroundTaskManagerEvent>,
+    #[allow(unused)]
     handle: JoinHandle<crate::Result<()>>,
 }
 

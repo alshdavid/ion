@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use flume::Sender;
 
-use crate::utils::RefCounter;
 use crate::DynResolver;
 use crate::Env;
 use crate::fs::FileSystem;
@@ -16,6 +15,7 @@ use crate::platform::v8::RawGlobal;
 use crate::platform::v8::RawIsolate;
 use crate::platform::v8::RawIsolateScope;
 use crate::platform::worker::JsWorkerEvent;
+use crate::utils::RefCounter;
 use crate::utils::channel::oneshot;
 
 // Container that constructs a V8 context and preserves the internals until dropped
@@ -25,10 +25,10 @@ pub struct JsRealm {
     pub(crate) id: usize,
     pub(crate) env: Box<Env>,
     pub(crate) background_task_manager: Arc<BackgroundTaskManager>,
-    /// Used to tell the Worker if there are any long-lived async tasks 
+    /// Used to tell the Worker if there are any long-lived async tasks
     /// that should prevent the context from being shutdown
-    pub (crate) global_refs: RefCounter,
-    pub (crate) shutdown_requested: Rc<RefCell<bool>>,
+    pub(crate) global_refs: RefCounter,
+    pub(crate) shutdown_requested: Rc<RefCell<bool>>,
     // TODO make these RefCells
     pub(crate) modules: *mut ModuleMap,
     #[allow(unused)]
@@ -113,13 +113,6 @@ impl JsRealm {
 
     pub fn env(&self) -> &Env {
         &self.env
-    }
-
-    pub fn notify_shutdown(&self) {
-        let mut on_before_exit = self.env.on_before_exit.borrow_mut();
-        while let Some(on_before_exit) = on_before_exit.pop() {
-            on_before_exit().unwrap();
-        }
     }
 
     pub fn spawn_background(

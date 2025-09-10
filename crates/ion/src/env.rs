@@ -31,10 +31,6 @@ pub struct Env {
     pub(crate) global_refs: RefCounter,
     pub(crate) shutdown_requested: Rc<RefCell<bool>>,
     pub(crate) tx: Sender<JsWorkerEvent>,
-
-    // Delete
-    pub(crate) on_before_exit: RefCell<Vec<Rc<dyn 'static + Fn() -> crate::Result<()>>>>,
-    pub(crate) shutdown_has_run: RefCell<bool>,
 }
 
 impl Env {
@@ -47,11 +43,6 @@ impl Env {
         shutdown_requested: Rc<RefCell<bool>>,
         tx: Sender<JsWorkerEvent>,
     ) -> Box<Self> {
-        let on_before_exit =
-            RefCell::new(Vec::<Rc<dyn 'static + Fn() -> crate::Result<()>>>::new());
-
-        let shutdown_has_run = RefCell::new(false);
-
         let mut env = Box::new(Env {
             realm_id: 0,
             isolate,
@@ -59,8 +50,6 @@ impl Env {
             global_this,
             background_task_manager,
             inner: std::ptr::null_mut(),
-            on_before_exit,
-            shutdown_has_run,
             global_refs,
             shutdown_requested,
             tx,
@@ -120,18 +109,6 @@ impl Env {
         unsafe { v8::CallbackScope::new(context) }
     }
 
-    pub fn on_before_exit(&self, callback: impl 'static + Fn() -> crate::Result<()>) {
-        let mut shutdown_has_run = self.shutdown_has_run.borrow_mut();
-        let mut on_before_exit = self.on_before_exit.borrow_mut();
-        (*shutdown_has_run) = true;
-        on_before_exit.push(Rc::new(callback));
-    }
-
-    pub fn shutdown_has_run(&self) -> bool {
-        let shutdown_has_run = self.shutdown_has_run.borrow();
-        shutdown_has_run.clone()
-    }
-
     pub fn spawn_background(
         &self,
         callback: impl 'static
@@ -154,49 +131,10 @@ impl Env {
         })
     }
 
-    /// Send a task to a background thread
-    pub fn spawn_background_then<Result: 'static + Send + Sync>(
+    pub fn eval_script<Return: FromJsValue>(
         &self,
-        fut: impl 'static + Send + Sync + Future<Output = crate::Result<Result>>,
-        then_fn: impl 'static + FnOnce(&Env, Result) -> crate::Result<()>,
-    ) -> crate::Result<()> {
-        let tx = self.tx.clone();
-        let realm_id = self.realm_id;
-
-        let then_fn: Box<dyn 'static + FnOnce(&Env, Result) -> crate::Result<()>> =
-            Box::new(then_fn);
-        let then_fn = Box::into_raw(Box::new(then_fn));
-        let then_fn = then_fn as usize;
-
-        self.background_task_manager.spawn(async move {
-            let result = match fut.await {
-                Ok(result) => result,
-                Err(_) => {
-                    let then_fn = then_fn
-                        as *mut Box<dyn 'static + FnOnce(&Env, Result) -> crate::Result<()>>;
-                    let then_fn = unsafe { Box::from_raw(then_fn) };
-                    drop(then_fn);
-                    return Ok(());
-                }
-            };
-
-            tx.try_send(JsWorkerEvent::Exec {
-                id: realm_id,
-                callback: Box::new(move |env| {
-                    let then_fn = then_fn
-                        as *mut Box<dyn 'static + FnOnce(&Env, Result) -> crate::Result<()>>;
-                    let then_fn = unsafe { Box::from_raw(then_fn) };
-                    (*then_fn)(env, result)
-                }),
-            })?;
-
-            tx.try_send(JsWorkerEvent::BackgroundTaskComplete { id: realm_id })?;
-
-            Ok(())
-        })
-    }
-
-    pub fn eval_script<Return: FromJsValue>(&self, code: impl AsRef<str>) -> crate::Result<Return> {
+        code: impl AsRef<str>,
+    ) -> crate::Result<Return> {
         let scope = &mut self.scope();
 
         let Some(code) = v8::String::new(scope, code.as_ref()) else {
@@ -214,7 +152,10 @@ impl Env {
         Return::from_js_value(self, Value::from(value))
     }
 
-    pub fn eval_module(&self, code: impl AsRef<str>) -> crate::Result<JsObject> {
+    pub fn eval_module(
+        &self,
+        code: impl AsRef<str>,
+    ) -> crate::Result<JsObject> {
         let scope = &mut self.scope();
         let realm = JsRealm::v8_revive(scope);
 
@@ -227,37 +168,10 @@ impl Env {
     }
 
     /// Load a file and evaluate it
-    pub fn import(&self, _path: impl AsRef<Path>) -> crate::Result<()> {
+    pub fn import(
+        &self,
+        _path: impl AsRef<Path>,
+    ) -> crate::Result<()> {
         todo!()
     }
 }
-
-impl Drop for Env {
-    fn drop(&mut self) {
-        // drop(unsafe { Box::from_raw(self.on_before_exit)});
-        // drop(unsafe { Box::from_raw(self.shutdown_has_run) });
-    }
-}
-
-// unsafe impl Send for SendFnOnce {}
-// unsafe impl Sync for SendFnOnce {}
-
-// struct SendFnOnce(*mut c_void);
-
-// impl SendFnOnce {
-//     fn new(func: Box<dyn FnOnce(&Env) -> crate::Result<()>>) -> Self {
-//         let func: *mut Box<dyn Send + Sync + FnOnce(&Env) -> Result<(), crate::Error>> =
-//             Box::into_raw(Box::new(func));
-//         let func = func as *mut c_void;
-//         Self(func as _)
-//     }
-// }
-
-// impl Drop for SendFnOnce {
-//     fn drop(&mut self) {
-//         drop(unsafe {
-//             let func: *mut (dyn FnOnce(&Env) -> crate::Result<()>) = std::mem::transmute(self.0);
-//             Box::from_raw(func)
-//         })
-//     }
-// }

@@ -1,4 +1,5 @@
-use flume::{bounded, Sender};
+use flume::Sender;
+use flume::bounded;
 
 use crate::Env;
 use crate::platform::worker::JsWorkerEvent;
@@ -54,6 +55,3 @@ impl AsyncEnv {
         Ok(ret)
     }
 }
-
-unsafe impl Send for AsyncEnv {}
-unsafe impl Sync for AsyncEnv {}

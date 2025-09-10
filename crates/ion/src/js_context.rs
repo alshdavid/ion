@@ -100,9 +100,7 @@ impl Drop for JsContext {
     fn drop(&mut self) {
         if self
             .tx
-            .send(JsWorkerEvent::RequestContextShutdown {
-                id: self.id,
-            })
+            .send(JsWorkerEvent::RequestContextShutdown { id: self.id })
             .is_err()
         {
             panic!("Cannot drop JsContext 1")
