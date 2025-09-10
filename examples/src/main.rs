@@ -28,6 +28,8 @@ fn main() -> anyhow::Result<()> {
         "thread_safe_function" => thread_safe_function::main(),
         "testing_memory_usage_worker" => testing::memory_usage_worker::main(),
         "testing_memory_usage_context" => testing::memory_usage_context::main(),
+        "testing_memory_usage_value" => testing::memory_usage_value::main(),
+        "testing_memory_usage_tsfn" => testing::memory_usage_tsfn::main(),
         "testing_multiple_workers" => testing::multiple_workers::main(),
         "testing_multiple_contexts" => testing::multiple_contexts::main(),
         "testing_background_tasks" => testing::background_tasks::main(),

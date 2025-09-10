@@ -14,9 +14,9 @@ impl Value {
         self.0 as usize
     }
 
-    pub fn into_inner(self) -> v8::Local<'static, v8::Value> {
-        unsafe { *Box::from_raw(self.0 as *mut v8::Local<'static, v8::Value>) }
-    }
+    // pub fn into_inner(self) -> v8::Local<'static, v8::Value> {
+    //     unsafe { *Box::from_raw(self.0 as *mut v8::Local<'static, v8::Value>) }
+    // }
 }
 
 impl From<v8::Local<'_, v8::Value>> for Value {
