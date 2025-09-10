@@ -4,7 +4,13 @@ use std::sync::Arc;
 
 use flume::Sender;
 
+use crate::DynResolver;
+use crate::Env;
+use crate::fs::FileSystem;
+use crate::platform::background_worker::BackgroundTaskManager;
+use crate::platform::module_map::ModuleMap;
 use crate::platform::v8::__v8_context;
+use crate::platform::v8::__v8_global_this;
 use crate::platform::v8::v8_drop_context_scope;
 use crate::platform::v8::v8_drop_root_scope;
 use crate::platform::v8::v8_get_context;
@@ -14,12 +20,6 @@ use crate::platform::v8::v8_new_context;
 use crate::platform::v8::v8_new_context_scope;
 use crate::platform::v8::v8_new_global_this;
 use crate::platform::v8::v8_new_root_scope;
-use crate::DynResolver;
-use crate::Env;
-use crate::fs::FileSystem;
-use crate::platform::background_worker::BackgroundTaskManager;
-use crate::platform::module_map::ModuleMap;
-use crate::platform::v8::__v8_global_this;
 use crate::platform::worker::JsWorkerEvent;
 use crate::utils::RefCounter;
 use crate::utils::channel::oneshot;
@@ -55,7 +55,7 @@ impl JsRealm {
             v8_drop_root_scope(handle_scope);
             context
         };
-        
+
         let global_this = {
             let handle_scope = v8_new_root_scope(v8::HandleScope::new(unsafe { &mut *isolate }));
             let context_scope = v8_new_context_scope(v8::ContextScope::new(
@@ -131,7 +131,6 @@ impl JsRealm {
         }
 
         realm.id = realm_id;
-
 
         realm
     }

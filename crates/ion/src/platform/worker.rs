@@ -9,13 +9,14 @@ use flume::Receiver;
 use flume::Sender;
 use flume::unbounded;
 
-use crate::platform::v8::v8_drop_context;
-use crate::platform::v8::v8_drop_global_this;
 use crate::DynResolver;
 use crate::Env;
 use crate::JsExtension;
 use crate::fs::FileSystem;
+use crate::platform::Reference;
 use crate::platform::background_worker::BackgroundTaskManager;
+use crate::platform::v8::v8_drop_context;
+use crate::platform::v8::v8_drop_global_this;
 use crate::utils::HashMapExt;
 use crate::utils::PathExt;
 
@@ -97,7 +98,7 @@ fn worker_thread(
     let mut shutdown_requested = false;
 
     while let Ok(event) = rx.recv() {
-        println!("{:?} {:?}", active_context, event);
+        // println!("{:?} {:?}", active_context, event);
         match event {
             JsWorkerEvent::CreateContext { resolve } => {
                 active_context.unset();
@@ -131,7 +132,6 @@ fn worker_thread(
                     let realm = realms.try_get_mut(&id)?;
                     let mut realm_shutdown_requested = realm.shutdown_requested.borrow_mut();
                     (*realm_shutdown_requested) = true;
-                    println!("Refs {}", realm.global_refs.count());
                     if realm.global_refs.count() != 0 {
                         continue;
                     }
@@ -151,9 +151,10 @@ fn worker_thread(
                 let context = realm.context;
                 let global_this = realm.global_this;
 
-
                 drop(context_scope);
                 drop(handle_scope);
+
+                Reference::clear_references(&realm.env);
 
                 drop(v8_drop_global_this(global_this));
                 drop(v8_drop_context(context));
@@ -205,7 +206,7 @@ fn worker_thread(
                 if !realms.is_empty() {
                     continue;
                 }
-                
+
                 for sender in shutdown_senders {
                     let _ = sender.try_send(());
                 }
@@ -219,13 +220,15 @@ fn worker_thread(
         }
     }
 
-    println!("Closing thread");
     Ok(())
 }
 
 #[allow(unused)]
 impl std::fmt::Debug for JsWorkerEvent {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         match self {
             Self::CreateContext { resolve } => write!(f, "CreateContext"),
             Self::BackgroundTaskComplete { id } => write!(f, "BackgroundTaskComplete"),

@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::ffi::c_void;
 
@@ -9,15 +10,36 @@ use crate::Env;
 // the reference count informs if a value should be removed from the map.
 // The reference count looks at both calls to Rust's drop() and hooks into v8's GC
 thread_local! {
-    static STATICS: RefCell<HashSet<*mut c_void>> = Default::default();
+    static STATICS: RefCell<HashMap<usize, HashSet<*mut c_void>>> = Default::default();
 }
 
-fn cache_insert(entry: *mut std::ffi::c_void) {
-    STATICS.with(|hm| hm.borrow_mut().insert(entry));
+fn cache_insert(
+    id: usize,
+    entry: *mut std::ffi::c_void,
+) {
+    STATICS.with(|hm| hm.borrow_mut().entry(id).or_default().insert(entry));
 }
 
-fn cache_remove(key: *mut std::ffi::c_void) -> bool {
-    STATICS.with(|hm| hm.borrow_mut().remove(&key))
+fn cache_remove(
+    id: usize,
+    key: *mut std::ffi::c_void,
+) -> bool {
+    STATICS.with(|hm| hm.borrow_mut().entry(id).or_default().remove(&key))
+}
+
+fn cache_clear(env: &Env) -> bool {
+    let Some(globals) = STATICS.with(|hm| hm.borrow_mut().remove(&env.realm_id)) else {
+        return false;
+    };
+
+    for address in globals {
+        let reference = unsafe { &mut *(address as *mut Reference) };
+        if let Some(callback) = reference.finalize_cb.take() {
+            callback(env.clone());
+        }
+    }
+
+    true
 }
 
 #[derive(Debug)]
@@ -41,6 +63,10 @@ pub struct Reference {
 }
 
 impl Reference {
+    pub(crate) fn clear_references(env: &Env) {
+        cache_clear(env);
+    }
+
     /// Register a callback to run when the value is GC'd by v8
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
     pub fn register_global_finalizer<'a>(
@@ -50,33 +76,24 @@ impl Reference {
         ownership: ReferenceOwnership,
         finalize_cb: Option<Box<dyn 'static + FnOnce(Env)>>,
     ) {
-        let mut scope = unsafe {
-            &*env
-        }.scope();
-        let g = v8::Global::new(&mut scope, value);
-        let reference = Self::new(
-            value,
-            env,
-            initial_ref_count,
-            ownership,
-            Box::new(|_| {}),
-        );
+        let reference = Self::new(value, env, initial_ref_count, ownership, Box::new(|_| {}));
         let ptr = Box::into_raw(reference);
         let address = ptr as *mut c_void;
+        let realm_id = unsafe { &*env }.realm_id;
 
         let reference = unsafe { &mut *ptr };
 
         reference.dec_ref();
         reference.finalize_cb = Some(Box::new(move |_| {
             drop(unsafe { Box::from_raw(address as *mut Reference) });
-            cache_remove(address);
+            cache_remove(realm_id, address);
             if let Some(callback) = finalize_cb {
                 let env = unsafe { &*env }.clone();
                 callback(env);
             }
         }));
 
-        cache_insert(address);
+        cache_insert(realm_id, address);
     }
 
     /// Note, the finalizer callback will not fire if the reference is dropped before
@@ -90,7 +107,6 @@ impl Reference {
         finalize_cb: Box<dyn 'static + FnOnce(Env)>,
     ) -> Box<Self> {
         let isolate = Reference::isolate(env);
-        let scope = &mut unsafe {&*env}.scope();
 
         let mut reference = Box::new(Reference {
             env,

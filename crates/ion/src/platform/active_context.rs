@@ -15,7 +15,10 @@ pub struct ActiveContext {
 }
 
 impl std::fmt::Debug for ActiveContext {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
         if let Some((id, _, _)) = &self.current {
             write!(f, "ActiveContext {:?}", id)
         } else {
@@ -32,42 +35,39 @@ impl ActiveContext {
         }
     }
 
-    pub fn set(&mut self, context: __v8_context) -> bool {
-        if let Some((id, _,_)) = self.current
+    pub fn set(
+        &mut self,
+        context: __v8_context,
+    ) -> bool {
+        if let Some((id, _, _)) = self.current
             && id == v8_get_context_address(context)
         {
             return false;
         }
-        println!("1");
 
         // Drop the current context first so v8 can do clean up
         self.unset();
 
         // Create new context and put it on the stack
-        println!("1");
         let handle_scope = v8_new_root_scope(v8::HandleScope::new(unsafe { &mut *self.isolate }));
-        println!("2");
         let context_scope = v8_new_context_scope(v8::ContextScope::new(
             v8_get_root_scope(handle_scope),
             v8_get_context(context),
         ));
 
-        println!("33");
         self.current
             .replace((v8_get_context_address(context), context_scope, handle_scope));
-
-        println!("4");
 
         return true;
     }
 
     pub fn take(
-        &mut self,
+        &mut self
     ) -> Option<(
         v8::ContextScope<'static, v8::HandleScope<'static>>,
         v8::HandleScope<'static, ()>,
     )> {
-        let Some((id, context_scope, handle_scope)) = self.current.take() else {
+        let Some((_id, context_scope, handle_scope)) = self.current.take() else {
             return None;
         };
         Some((

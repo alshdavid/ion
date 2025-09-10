@@ -169,7 +169,10 @@ pub mod map_return {
     use crate::Env;
     use crate::JsUnknown;
 
-    pub fn noop(_env: &Env, _ret: JsUnknown) -> crate::Result<()> {
+    pub fn noop(
+        _env: &Env,
+        _ret: JsUnknown,
+    ) -> crate::Result<()> {
         Ok(())
     }
 }

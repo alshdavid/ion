@@ -1,4 +1,6 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::rc::Rc;
 
 use crate::platform::module::Module;
 
@@ -29,7 +31,7 @@ impl ModuleMap {
     ) -> Option<Rc<Module>> {
         let inner = self.inner.borrow();
         if let Some(module) = inner.get(id) {
-            return Some(Rc::clone(&module))
+            return Some(Rc::clone(&module));
         }
         None
     }

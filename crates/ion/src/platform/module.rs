@@ -70,12 +70,15 @@ impl Module {
         })
     }
 
-    pub fn update_status(&self, status: ModuleStatus) {
+    pub fn update_status(
+        &self,
+        status: ModuleStatus,
+    ) {
         let mut st = self.status.borrow_mut();
         (*st) = status
     }
 
-    pub fn get_status(&self) -> ModuleStatus{
+    pub fn get_status(&self) -> ModuleStatus {
         let st = self.status.borrow();
         st.clone()
     }
