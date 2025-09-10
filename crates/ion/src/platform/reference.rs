@@ -44,14 +44,18 @@ impl Reference {
     /// Register a callback to run when the value is GC'd by v8
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
     pub fn register_global_finalizer<'a>(
-        value: impl Into<v8::Local<'a, v8::Value>>,
+        value: v8::Local<'a, v8::Value>,
         env: *mut Env,
         initial_ref_count: u32,
         ownership: ReferenceOwnership,
         finalize_cb: Option<Box<dyn 'static + FnOnce(Env)>>,
     ) {
+        let mut scope = unsafe {
+            &*env
+        }.scope();
+        let g = v8::Global::new(&mut scope, value);
         let reference = Self::new(
-            value.into(),
+            value,
             env,
             initial_ref_count,
             ownership,
@@ -86,6 +90,7 @@ impl Reference {
         finalize_cb: Box<dyn 'static + FnOnce(Env)>,
     ) -> Box<Self> {
         let isolate = Reference::isolate(env);
+        let scope = &mut unsafe {&*env}.scope();
 
         let mut reference = Box::new(Reference {
             env,

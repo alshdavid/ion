@@ -31,7 +31,7 @@ impl<T> JsExternal<T> {
 
         let value = v8::External::new(scope, ptr as _);
         Reference::register_global_finalizer(
-            value,
+            value.into(),
             env.into_raw(),
             1,
             ReferenceOwnership::Rust,

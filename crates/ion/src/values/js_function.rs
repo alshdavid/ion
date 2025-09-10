@@ -37,13 +37,13 @@ impl JsFunction {
         }));
         let external = v8::External::new(scope, callback as _);
 
-        // Reference::register_global_finalizer(
-        //     external,
-        //     env.into_raw(),
-        //     1,
-        //     ReferenceOwnership::Rust,
-        //     Some(Box::new(move |_| drop(unsafe { Box::from_raw(callback) }))),
-        // );
+        Reference::register_global_finalizer(
+            external.into(),
+            env.into_raw(),
+            1,
+            ReferenceOwnership::Rust,
+            Some(Box::new(move |_| drop(unsafe { Box::from_raw(callback) }))),
+        );
 
         let value = v8::Function::builder(
             |_scope: &mut v8::HandleScope,
