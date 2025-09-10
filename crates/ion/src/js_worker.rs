@@ -73,6 +73,7 @@ impl JsWorker {
 
 impl Drop for JsWorker {
     fn drop(&mut self) {
+        println!("Drop JsWorker");
         let (tx, rx) = oneshot();
 
         if self

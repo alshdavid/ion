@@ -1,48 +1,28 @@
-use std::ops::Deref;
-use std::ops::DerefMut;
-use std::rc::Rc;
+use crate::platform::v8::v8_get_context_scope;
+use crate::platform::v8::v8_get_context;
+use crate::platform::v8::__v8_context_scope;
 
-use crate::platform::v8::RawContextScope;
+use super::__v8_context;
 
-use super::RawContext;
+#[allow(non_camel_case_types)]
+pub type __v8_global_this = *mut v8::Global<v8::Object>;
 
-#[derive(Debug)]
-pub struct RawGlobal(*mut v8::Local<'static, v8::Object>);
+pub fn v8_new_global_this(
+    context: __v8_context,
+    context_scope: __v8_context_scope,
+) -> __v8_global_this {
+    let scope = v8_get_context_scope(context_scope);
 
-impl RawGlobal {
-    pub fn new(
-        context: &RawContext,
-        scope: &RawContextScope,
-    ) -> Rc<Self> {
-        let scope = scope.as_mut();
-        // Note: [`v8::Global::into_raw`] appears to have a memory leak
-        let global_local = context.global(scope);
-        let global_global = v8::Global::new(scope, global_local);
-        let global_this = Box::into_raw(Box::new(global_global));
-        Rc::new(Self(global_this as *mut v8::Local<'static, v8::Object>))
-    }
-
-    pub fn as_inner(&self) -> v8::Local<'static, v8::Object> {
-        unsafe { *self.0 }
-    }
+    // Note: [`v8::Global::into_raw`] appears to have a memory leak
+    let global_local = v8_get_context(context).global(scope);
+    let global_global = v8::Global::new(scope, global_local);
+    Box::into_raw(Box::new(global_global))
 }
 
-impl Deref for RawGlobal {
-    type Target = v8::Local<'static, v8::Object>;
-
-    fn deref(&self) -> &Self::Target {
-        unsafe { &*self.0 }
-    }
+pub fn v8_get_global_this(v8_global_this: __v8_global_this) -> v8::Local<'static, v8::Object> {
+    unsafe { *(v8_global_this as *mut v8::Local<'static, v8::Object>) }
 }
 
-impl DerefMut for RawGlobal {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        unsafe { &mut *self.0 }
-    }
-}
-
-impl Drop for RawGlobal {
-    fn drop(&mut self) {
-        drop(unsafe { Box::from_raw(self.0 as *mut v8::Global<v8::Object>) })
-    }
+pub fn v8_drop_global_this(v8_global_this: __v8_global_this) -> v8::Global<v8::Object> {
+    unsafe { *Box::from_raw(v8_global_this) }
 }

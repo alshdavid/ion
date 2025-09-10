@@ -12,7 +12,6 @@ workspace = true
 flume.workspace = true
 v8.workspace = true
 tokio = { workspace = true, features = ["full"] }
-tokio-util = { workspace = true, features = ["rt"] }
 normalize-path.workspace = true
 async_fn_traits.workspace = true
 num_cpus.workspace = true

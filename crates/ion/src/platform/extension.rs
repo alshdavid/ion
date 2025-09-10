@@ -57,8 +57,8 @@ impl Extension {
                     scope.perform_microtask_checkpoint();
                     promise.result(scope);
 
-                    let module = module_map.get_module_mut(module_name).unwrap();
-                    module.status = ModuleStatus::Ready;
+                    let module = module_map.get_module(module_name).unwrap();
+                    module.update_status(ModuleStatus::Ready);
                 }
                 JsExtension::NativeModule {
                     module_name: _,
@@ -111,8 +111,8 @@ impl Extension {
                     scope.perform_microtask_checkpoint();
                     promise.result(scope);
 
-                    let module = module_map.get_module_mut(module_name).unwrap();
-                    module.status = ModuleStatus::Ready;
+                    let module = module_map.get_module(module_name).unwrap();
+                    module.update_status(ModuleStatus::Ready);
                 }
             }
         }

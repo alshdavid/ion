@@ -1,8 +1,4 @@
-#![allow(warnings)]
 use std::collections::HashMap;
-use std::collections::HashSet;
-use std::path::PathBuf;
-use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::thread;
@@ -11,30 +7,22 @@ use std::usize;
 
 use flume::Receiver;
 use flume::Sender;
-use flume::bounded;
 use flume::unbounded;
-use tokio_util::task::TaskTracker;
-use v8::Isolate;
 
+use crate::platform::v8::v8_drop_context;
+use crate::platform::v8::v8_drop_global_this;
 use crate::DynResolver;
 use crate::Env;
-use crate::Error;
 use crate::JsExtension;
-use crate::ResolverContext;
 use crate::fs::FileSystem;
 use crate::platform::background_worker::BackgroundTaskManager;
 use crate::utils::HashMapExt;
 use crate::utils::PathExt;
-use crate::utils::channel::oneshot;
-use crate::utils::tokio_ext::LocalRuntimeExt;
 
 use super::JsRealm;
 use super::active_context::ActiveContext;
 use super::extension::Extension;
 use super::module::Module;
-use super::module_map::ModuleMap;
-use super::resolve::run_resolvers;
-use super::v8::RawIsolate;
 
 pub(crate) enum JsWorkerEvent {
     CreateContext {
@@ -44,6 +32,7 @@ pub(crate) enum JsWorkerEvent {
         id: usize,
     },
     RequestContextShutdown {
+        resolve: Option<Sender<()>>,
         id: usize,
     },
     Exec {
@@ -90,65 +79,99 @@ fn worker_thread(
     extensions: Vec<Arc<JsExtension>>,
     resolvers: Vec<DynResolver>,
 ) -> crate::Result<()> {
+    let fs = FileSystem::Physical;
+
     // One isolate per worker thread
-    let isolate = RawIsolate::new(v8::Isolate::new(v8::CreateParams::default()));
+    let mut isolate = v8::Isolate::new(v8::CreateParams::default());
+    let isolate_ptr = isolate.as_mut() as *mut v8::Isolate;
 
     // Used to switch between context scopes on the same thread
-    let mut active_context = ActiveContext::new(Rc::clone(&isolate));
+    let mut active_context = ActiveContext::new(isolate_ptr);
 
     // Maintain a store of Global<Context> to help with cleanup on shutdown.
     let mut realms = HashMap::<usize, Box<JsRealm>>::new();
-    let fs = FileSystem::Physical;
 
+    // Cleanup hooks
+    let mut shutdown_context_senders = HashMap::<usize, Vec<Sender<()>>>::new();
+    let mut shutdown_senders = Vec::<Sender<()>>::new();
     let mut shutdown_requested = false;
 
     while let Ok(event) = rx.recv() {
-        // println!("{:?}", event);
+        println!("{:?} {:?}", active_context, event);
         match event {
             JsWorkerEvent::CreateContext { resolve } => {
+                active_context.unset();
+
                 let realm = JsRealm::new(
-                    Rc::clone(&isolate),
+                    isolate_ptr,
                     fs.clone(),
                     resolvers.clone(),
                     background_task_manager.clone(),
                     tx.clone(),
                 );
                 let realm_id = realm.id();
-                active_context.set(&realm.context);
+                active_context.set(realm.context);
 
-                Extension::register_extensions(&realm, &extensions);
+                Extension::register_extensions(&realm, &extensions)?;
 
                 realms.insert(realm_id.clone(), realm);
                 resolve.try_send((realm_id, tx.clone()))?;
             }
-            JsWorkerEvent::RequestContextShutdown { id } => {
+            JsWorkerEvent::RequestContextShutdown { id, resolve } => {
+                // Store shutdown resolvers for when the context is closed
+                if let Some(resolve) = resolve {
+                    shutdown_context_senders
+                        .entry(id.clone())
+                        .or_default()
+                        .push(resolve);
+                }
+
                 // If there are async tasks pending then wait for them to complete
                 {
                     let realm = realms.try_get_mut(&id)?;
                     let mut realm_shutdown_requested = realm.shutdown_requested.borrow_mut();
                     (*realm_shutdown_requested) = true;
+                    println!("Refs {}", realm.global_refs.count());
                     if realm.global_refs.count() != 0 {
                         continue;
                     }
                 };
 
                 // If there are no async tasks then shutdown the context
-                let realm = realms.try_remove(&id)?;
-                active_context.set(&realm.context);
+                let Some(realm) = realms.remove(&id) else {
+                    continue;
+                };
+
+                active_context.set(realm.context);
+
                 let Some((context_scope, handle_scope)) = active_context.take() else {
                     panic!()
                 };
 
+                let context = realm.context;
+                let global_this = realm.global_this;
+
+
                 drop(context_scope);
                 drop(handle_scope);
 
+                drop(v8_drop_global_this(global_this));
+                drop(v8_drop_context(context));
+
+                for resolver in shutdown_context_senders.remove(&id).unwrap_or_default() {
+                    let _ = resolver.try_send(());
+                }
+
                 if shutdown_requested && realms.is_empty() {
+                    for sender in shutdown_senders {
+                        let _ = sender.try_send(());
+                    }
                     break;
                 }
             }
             JsWorkerEvent::Exec { id, callback } => {
                 let realm = realms.try_get(&id)?;
-                active_context.set(&realm.context);
+                active_context.set(realm.context);
 
                 if let Err(err) = callback(&realm.env()) {
                     // TODO global error handler
@@ -157,9 +180,9 @@ fn worker_thread(
             }
             JsWorkerEvent::BackgroundTaskComplete { id } => {
                 let realm = realms.try_get(&id)?;
-                let mut realm_shutdown_requested = realm.shutdown_requested.borrow();
+                let realm_shutdown_requested = realm.shutdown_requested.borrow();
                 if *realm_shutdown_requested && realm.global_refs.count() == 0 {
-                    tx.try_send(JsWorkerEvent::RequestContextShutdown { id })?;
+                    tx.try_send(JsWorkerEvent::RequestContextShutdown { id, resolve: None })?;
                 }
             }
             JsWorkerEvent::Import {
@@ -167,20 +190,27 @@ fn worker_thread(
                 specifier,
                 resolve,
             } => {
-                let module = Module::v8_initialize(
+                Module::v8_initialize(
                     true,
                     realms.try_get(&id)?,
                     &specifier,
                     std::env::current_dir()?.try_to_string()?,
                 )?;
 
-                let result = resolve.try_send(())?;
+                resolve.try_send(())?;
             }
             JsWorkerEvent::RequestShutdown { resolve } => {
+                shutdown_senders.push(resolve);
                 shutdown_requested = true;
-                if realms.is_empty() {
-                    break;
+                if !realms.is_empty() {
+                    continue;
                 }
+                
+                for sender in shutdown_senders {
+                    let _ = sender.try_send(());
+                }
+
+                break;
             }
             JsWorkerEvent::RunGarbageCollectionForTesting { resolve } => {
                 // isolate.request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
@@ -189,18 +219,17 @@ fn worker_thread(
         }
     }
 
+    println!("Closing thread");
     Ok(())
 }
 
+#[allow(unused)]
 impl std::fmt::Debug for JsWorkerEvent {
-    fn fmt(
-        &self,
-        f: &mut std::fmt::Formatter<'_>,
-    ) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::CreateContext { resolve } => write!(f, "CreateContext"),
             Self::BackgroundTaskComplete { id } => write!(f, "BackgroundTaskComplete"),
-            Self::RequestContextShutdown { id } => write!(f, "RequestContextShutdown"),
+            Self::RequestContextShutdown { id, resolve } => write!(f, "RequestContextShutdown"),
             Self::Exec { id, callback } => write!(f, "Exec"),
             Self::Import {
                 id,

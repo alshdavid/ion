@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::ffi::c_void;
 use std::path::Path;
 use std::path::PathBuf;
@@ -9,7 +10,7 @@ use crate::platform::resolve::run_resolvers;
 use crate::utils::PathExt;
 use crate::utils::v8::v8_create_string;
 
-#[derive(Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord)]
 pub enum ModuleStatus {
     Ready,
     Initializing,
@@ -20,7 +21,7 @@ pub enum ModuleStatus {
 pub struct Module {
     pub(crate) id: i32,
     pub(crate) name: String,
-    pub(crate) status: ModuleStatus,
+    pub(crate) status: RefCell<ModuleStatus>,
     module: *mut c_void,
 }
 
@@ -65,8 +66,18 @@ impl Module {
             id,
             module: module_ptr as _,
             name: name.as_ref().to_string(),
-            status: ModuleStatus::Initializing,
+            status: RefCell::new(ModuleStatus::Initializing),
         })
+    }
+
+    pub fn update_status(&self, status: ModuleStatus) {
+        let mut st = self.status.borrow_mut();
+        (*st) = status
+    }
+
+    pub fn get_status(&self) -> ModuleStatus{
+        let st = self.status.borrow();
+        st.clone()
     }
 
     pub fn v8_module(&self) -> v8::Local<'static, v8::Module> {
@@ -82,10 +93,10 @@ impl Module {
         let module_map = realm.module_map();
 
         if let Some(module) = module_map.get_module(&name) {
-            if module.status == ModuleStatus::Initializing {
+            if module.get_status() == ModuleStatus::Initializing {
                 return Ok(module.v8_module());
             }
-            if module.status == ModuleStatus::Ready {
+            if module.get_status() == ModuleStatus::Ready {
                 return Ok(module.v8_module());
             }
         };
@@ -130,9 +141,9 @@ impl Module {
         }
 
         let module = module_map
-            .get_module_mut(result.path.try_to_string().unwrap())
+            .get_module(result.path.try_to_string().unwrap())
             .unwrap();
-        module.status = ModuleStatus::Ready;
+        module.update_status(ModuleStatus::Ready);
 
         if v8_module.get_status() == v8::ModuleStatus::Errored {
             let key = v8::String::new(scope, "message").unwrap().into();
@@ -176,9 +187,9 @@ impl Module {
             promise.result(scope);
         }
 
-        let module = module_map.get_module_mut(&module_name).unwrap();
+        let module = module_map.get_module(&module_name).unwrap();
 
-        module.status = ModuleStatus::Ready;
+        module.update_status(ModuleStatus::Ready);
 
         if v8_module.get_status() == v8::ModuleStatus::Errored {
             let key = v8::String::new(scope, "message").unwrap().into();

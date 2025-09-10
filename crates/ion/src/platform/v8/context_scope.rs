@@ -1,36 +1,18 @@
-use std::ops::Deref;
-use std::ops::DerefMut;
-use std::rc::Rc;
+use crate::platform::v8::__v8_root_scope;
 
-#[derive(Debug)]
-pub struct RawContextScope(*mut v8::ContextScope<'static, v8::HandleScope<'static>>);
+#[allow(non_camel_case_types)]
+pub type __v8_context_scope = *mut v8::ContextScope<'static, v8::HandleScope<'static>>;
 
-impl RawContextScope {
-    pub fn new(scope: v8::ContextScope<'_, v8::HandleScope<'_>>) -> Rc<Self> {
-        Rc::new(Self(Box::into_raw(Box::new(scope)) as _))
-    }
-
-    pub fn as_mut(&self) -> &mut v8::ContextScope<'static, v8::HandleScope<'static>> {
-        unsafe { &mut *self.0 }
-    }
+pub fn v8_new_context_scope(
+    scope: v8::ContextScope<'static, v8::HandleScope<'static>>
+) -> __v8_context_scope {
+    Box::into_raw(Box::new(scope)) as _
 }
 
-impl Deref for RawContextScope {
-    type Target = v8::ContextScope<'static, v8::HandleScope<'static>>;
-
-    fn deref(&self) -> &Self::Target {
-        unsafe { &*self.0 }
-    }
+pub fn v8_get_context_scope(context_scope: __v8_context_scope) -> &'static mut v8::ContextScope<'static, v8::HandleScope<'static>> {
+    unsafe { &mut *context_scope }
 }
 
-impl DerefMut for RawContextScope {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        unsafe { &mut *self.0 }
-    }
-}
-
-impl Drop for RawContextScope {
-    fn drop(&mut self) {
-        drop(unsafe { Box::from_raw(self.0) })
-    }
+pub fn v8_drop_context_scope(context_scope: __v8_context_scope) -> v8::ContextScope<'static, v8::HandleScope<'static>> {
+    unsafe { *Box::from_raw(context_scope) }
 }

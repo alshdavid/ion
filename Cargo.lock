@@ -584,7 +584,6 @@ dependencies = [
  "parking_lot",
  "rand",
  "tokio",
- "tokio-util",
  "v8",
 ]
 
@@ -1076,7 +1075,6 @@ dependencies = [
  "bytes",
  "futures-core",
  "futures-sink",
- "futures-util",
  "pin-project-lite",
  "tokio",
 ]

@@ -6,6 +6,8 @@ use std::sync::Arc;
 
 use flume::Sender;
 
+use crate::platform::v8::v8_get_context;
+use crate::platform::v8::v8_get_global_this;
 use crate::AsyncEnv;
 use crate::FromJsValue;
 use crate::JsObject;
@@ -13,9 +15,8 @@ use crate::platform::JsRealm;
 use crate::platform::Value;
 use crate::platform::background_worker::BackgroundTaskManager;
 use crate::platform::module::Module;
-use crate::platform::v8::RawContext;
-use crate::platform::v8::RawGlobal;
-use crate::platform::v8::RawIsolate;
+use crate::platform::v8::__v8_context;
+use crate::platform::v8::__v8_global_this;
 use crate::platform::worker::JsWorkerEvent;
 use crate::utils::RefCounter;
 use crate::utils::generate_random_string;
@@ -24,9 +25,9 @@ use crate::utils::generate_random_string;
 pub struct Env {
     pub(crate) inner: *mut Env,
     pub(crate) realm_id: usize,
-    pub(crate) isolate: Rc<RawIsolate>,
-    pub(crate) context: Rc<RawContext>,
-    pub(crate) global_this: Rc<RawGlobal>,
+    pub(crate) isolate: *mut v8::Isolate,
+    pub(crate) context: __v8_context,
+    pub(crate) global_this: __v8_global_this,
     pub(crate) background_task_manager: Arc<BackgroundTaskManager>,
     pub(crate) global_refs: RefCounter,
     pub(crate) shutdown_requested: Rc<RefCell<bool>>,
@@ -35,9 +36,9 @@ pub struct Env {
 
 impl Env {
     pub(crate) fn new(
-        isolate: Rc<RawIsolate>,
-        context: Rc<RawContext>,
-        global_this: Rc<RawGlobal>,
+        isolate: *mut v8::Isolate,
+        context: __v8_context,
+        global_this: __v8_global_this,
         background_task_manager: Arc<BackgroundTaskManager>,
         global_refs: RefCounter,
         shutdown_requested: Rc<RefCell<bool>>,
@@ -82,30 +83,48 @@ impl Env {
 
     pub fn dec_ref(&self) {
         self.global_refs.dec();
-        let shutdown_requested = self.shutdown_requested.borrow();
-        if self.global_refs.count() == 0 && *shutdown_requested {
+        let shutdown_requested = {
+            let shutdown_requested = self.shutdown_requested.borrow();
+            *shutdown_requested
+        };
+        
+        if self.global_refs.count() == 0 && shutdown_requested {
             self.tx
-                .try_send(JsWorkerEvent::RequestContextShutdown { id: self.realm_id })
+                .try_send(JsWorkerEvent::RequestContextShutdown {
+                    id: self.realm_id,
+                    resolve: None,
+                })
                 .unwrap();
         }
     }
 
+    pub fn ref_count(&self) -> usize {
+        self.global_refs.count()
+    }
+
+    pub fn as_async(&self) -> Arc<AsyncEnv> {
+        Arc::new(AsyncEnv {
+            tx: self.tx.clone(),
+            realm_id: self.realm_id.clone(),
+        })
+    }
+
     pub fn isolate(&mut self) -> &mut v8::Isolate {
         // SAFETY: Lifetime of `Isolate` is longer than `Env`.
-        self.isolate.as_mut()
+        unsafe {&mut *self.isolate}
     }
 
     pub fn global_this(&self) -> crate::Result<JsObject> {
-        let v = self.global_this.as_inner();
+        let v = v8_get_global_this(self.global_this);
         JsObject::from_js_value(self, Value::from(v.cast()))
     }
 
     pub fn context(&self) -> v8::Local<'static, v8::Context> {
-        self.context.as_inner()
+        v8_get_context(self.context)
     }
 
     pub fn scope(&self) -> v8::CallbackScope<'static> {
-        let context = self.context.as_inner();
+        let context =         v8_get_context(self.context);
         unsafe { v8::CallbackScope::new(context) }
     }
 
@@ -131,10 +150,7 @@ impl Env {
         })
     }
 
-    pub fn eval_script<Return: FromJsValue>(
-        &self,
-        code: impl AsRef<str>,
-    ) -> crate::Result<Return> {
+    pub fn eval_script<Return: FromJsValue>(&self, code: impl AsRef<str>) -> crate::Result<Return> {
         let scope = &mut self.scope();
 
         let Some(code) = v8::String::new(scope, code.as_ref()) else {
@@ -152,10 +168,7 @@ impl Env {
         Return::from_js_value(self, Value::from(value))
     }
 
-    pub fn eval_module(
-        &self,
-        code: impl AsRef<str>,
-    ) -> crate::Result<JsObject> {
+    pub fn eval_module(&self, code: impl AsRef<str>) -> crate::Result<JsObject> {
         let scope = &mut self.scope();
         let realm = JsRealm::v8_revive(scope);
 
@@ -168,10 +181,7 @@ impl Env {
     }
 
     /// Load a file and evaluate it
-    pub fn import(
-        &self,
-        _path: impl AsRef<Path>,
-    ) -> crate::Result<()> {
+    pub fn import(&self, _path: impl AsRef<Path>) -> crate::Result<()> {
         todo!()
     }
 }

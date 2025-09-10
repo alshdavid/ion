@@ -3,6 +3,7 @@ use std::path::Path;
 use flume::Sender;
 use flume::bounded;
 
+use crate::utils::channel::oneshot;
 use crate::Env;
 use crate::Error;
 use crate::JsUnknown;
@@ -98,12 +99,22 @@ impl JsContext {
 
 impl Drop for JsContext {
     fn drop(&mut self) {
+        println!("Dropping JsContext");
+        let (tx, rx) = oneshot();
+
         if self
             .tx
-            .send(JsWorkerEvent::RequestContextShutdown { id: self.id })
+            .send(JsWorkerEvent::RequestContextShutdown {
+                id: self.id,
+                resolve: Some(tx),
+            })
             .is_err()
         {
             panic!("Cannot drop JsContext 1")
         };
+
+        if rx.recv().is_err() {
+            panic!("Cannot drop JsContext 2")
+        }
     }
 }
