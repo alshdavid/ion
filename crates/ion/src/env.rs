@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 use std::path::Path;
-use std::pin::Pin;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -130,24 +129,9 @@ impl Env {
 
     pub fn spawn_background(
         &self,
-        callback: impl 'static
-        + Send
-        + Sync
-        + FnOnce(
-            AsyncEnv,
-        ) -> Pin<
-            Box<dyn 'static + Send + Sync + Future<Output = crate::Result<()>>>,
-        >,
+        fut: impl 'static + Send + Sync + Future<Output = crate::Result<()>>,
     ) -> crate::Result<()> {
-        let async_env = AsyncEnv {
-            tx: self.tx.clone(),
-            realm_id: self.realm_id,
-        };
-
-        self.background_task_manager.spawn(async move {
-            callback(async_env).await?;
-            Ok(())
-        })
+        self.background_task_manager.spawn(fut)
     }
 
     pub fn eval_script<Return: FromJsValue>(

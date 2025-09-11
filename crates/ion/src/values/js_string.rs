@@ -4,6 +4,7 @@ use std::sync::Arc;
 use crate::Env;
 use crate::ToJsUnknown;
 use crate::platform::sys;
+use crate::platform::sys::Value;
 use crate::values::FromJsValue;
 use crate::values::JsObjectValue;
 use crate::values::JsValue;
@@ -11,7 +12,7 @@ use crate::values::ToJsValue;
 
 #[derive(Clone)]
 pub struct JsString {
-    pub(crate) value: sys::__v8_value,
+    pub(crate) value: Value,
     pub(crate) env: Env,
 }
 
@@ -38,7 +39,7 @@ impl JsString {
 }
 
 impl JsValue for JsString {
-    fn value(&self) -> &sys::__v8_value {
+    fn value(&self) -> &Value {
         &self.value
     }
 
@@ -53,7 +54,7 @@ impl JsObjectValue for JsString {}
 impl FromJsValue for JsString {
     fn from_js_value(
         env: &Env,
-        value: sys::__v8_value,
+        value: Value,
     ) -> crate::Result<Self> {
         Ok(Self {
             value,
@@ -66,7 +67,7 @@ impl ToJsValue for JsString {
     fn to_js_value(
         _env: &Env,
         val: Self,
-    ) -> crate::Result<sys::__v8_value> {
+    ) -> crate::Result<Value> {
         Ok(val.value)
     }
 }
@@ -75,7 +76,7 @@ impl ToJsValue for String {
     fn to_js_value(
         env: &Env,
         val: Self,
-    ) -> crate::Result<sys::__v8_value> {
+    ) -> crate::Result<Value> {
         Ok(JsString::new(env, val)?.value().clone())
     }
 }
@@ -84,7 +85,7 @@ impl ToJsValue for &str {
     fn to_js_value(
         env: &Env,
         val: Self,
-    ) -> crate::Result<sys::__v8_value> {
+    ) -> crate::Result<Value> {
         Ok(JsString::new(env, val)?.value().clone())
     }
 }
@@ -93,7 +94,7 @@ impl ToJsValue for Rc<str> {
     fn to_js_value(
         env: &Env,
         val: Self,
-    ) -> crate::Result<sys::__v8_value> {
+    ) -> crate::Result<Value> {
         Ok(JsString::new(env, val)?.value().clone())
     }
 }
@@ -102,7 +103,7 @@ impl ToJsValue for Arc<str> {
     fn to_js_value(
         env: &Env,
         val: Self,
-    ) -> crate::Result<sys::__v8_value> {
+    ) -> crate::Result<Value> {
         Ok(JsString::new(env, val)?.value().clone())
     }
 }

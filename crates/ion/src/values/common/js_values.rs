@@ -1,17 +1,17 @@
 use crate::Env;
 use crate::JsUnknown;
-use crate::platform::sys;
+use crate::platform::sys::Value;
 
 pub trait FromJsValue: Sized {
     /// this function called to convert JavaScript values to native rust values
     fn from_js_value(
         env: &Env,
-        value: sys::__v8_value,
+        value: Value,
     ) -> crate::Result<Self>;
 }
 
 pub trait JsValue: Sized + FromJsValue {
-    fn value(&self) -> &sys::__v8_value;
+    fn value(&self) -> &Value;
     fn env(&self) -> &Env;
 
     fn type_of(&self) -> String {
@@ -26,7 +26,7 @@ pub trait ToJsValue: Sized {
     fn to_js_value(
         env: &Env,
         val: Self,
-    ) -> crate::Result<sys::__v8_value>;
+    ) -> crate::Result<Value>;
 }
 
 pub trait ToJsUnknown: Sized + ToJsValue {

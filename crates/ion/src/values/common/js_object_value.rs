@@ -21,7 +21,6 @@ pub trait JsObjectValue: JsValue {
         let value = *value.value();
         let object = self.value().cast::<v8::Object>();
 
-
         object.set(scope, key, value);
         Ok(())
     }
@@ -69,7 +68,7 @@ pub trait JsObjectValue: JsValue {
         let scope = &mut env.scope();
 
         let object = self.value().cast::<v8::Object>();
-        
+
         let key = crate::utils::v8::v8_create_string(scope, name)?;
         let Some(result) = object.get(scope, key.into()) else {
             return Ok(None);
@@ -135,7 +134,7 @@ pub trait JsObjectValue: JsValue {
     ) -> crate::Result<bool> {
         let env = self.env();
         let scope = &mut env.scope();
-        
+
         let key = crate::utils::v8::v8_create_string(scope, name)?;
         let object = self.value().cast::<v8::Object>();
 

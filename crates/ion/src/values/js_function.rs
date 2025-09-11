@@ -6,6 +6,7 @@ use crate::JsObjectValue;
 use crate::JsValuesTupleIntoVec;
 use crate::ToJsUnknown;
 use crate::platform::sys;
+use crate::platform::sys::Value;
 use crate::utils::v8::v8_create_undefined;
 use crate::values::FromJsValue;
 use crate::values::JsValue;
@@ -13,8 +14,8 @@ use crate::values::ToJsValue;
 
 #[derive(Clone)]
 pub struct JsFunction {
-    pub(crate) value: sys::__v8_value,
-    pub(crate) this: Option<sys::__v8_value>,
+    pub(crate) value: Value,
+    pub(crate) this: Option<Value>,
     pub(crate) env: Env,
 }
 
@@ -136,7 +137,7 @@ impl JsFunction {
 }
 
 impl JsValue for JsFunction {
-    fn value(&self) -> &sys::__v8_value {
+    fn value(&self) -> &Value {
         &self.value
     }
 
@@ -151,7 +152,7 @@ impl JsObjectValue for JsFunction {}
 impl FromJsValue for JsFunction {
     fn from_js_value(
         env: &Env,
-        value: sys::__v8_value,
+        value: Value,
     ) -> crate::Result<Self> {
         Ok(Self {
             value,
@@ -165,7 +166,7 @@ impl ToJsValue for JsFunction {
     fn to_js_value(
         _env: &Env,
         val: Self,
-    ) -> crate::Result<sys::__v8_value> {
+    ) -> crate::Result<Value> {
         Ok(val.value)
     }
 }

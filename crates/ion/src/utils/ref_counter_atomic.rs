@@ -1,5 +1,6 @@
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
 
 /// Simple single threaded reference counter
 #[derive(Debug, Clone)]
@@ -13,7 +14,7 @@ impl Default for AtomicRefCounter {
 
 impl AtomicRefCounter {
     pub fn new(start: usize) -> Self {
-        Self(Arc::new(AtomicUsize::new(0)))
+        Self(Arc::new(AtomicUsize::new(start)))
     }
 
     pub fn inc(&self) -> usize {

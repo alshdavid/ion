@@ -1,11 +1,7 @@
 #[allow(non_camel_case_types)]
-pub type __v8_value = v8::Local<'static, v8::Value>;
+pub type Value = v8::Local<'static, v8::Value>;
 
-pub fn v8_new_value(value: v8::Local<'_, v8::Value>) -> __v8_value {
-    unsafe { std::mem::transmute(value)}
-}
-
-pub fn v8_from_value<'a>(value: impl Into<v8::Local<'a, v8::Value>>) -> __v8_value {
+pub fn v8_from_value<'a>(value: impl Into<v8::Local<'a, v8::Value>>) -> Value {
     unsafe { std::mem::transmute(value.into()) }
 }
 

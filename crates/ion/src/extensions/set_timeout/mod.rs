@@ -22,7 +22,7 @@ fn extension_hook(
     exports: &mut JsObject,
 ) -> crate::Result<()> {
     let timer_refs = Arc::new(Mutex::new(HashSet::<String>::new()));
-    let ref_count = AtomicRefCounter::default();
+    let ref_count = AtomicRefCounter::new(0);
 
     exports.set_named_property(
         "setTimeout",
@@ -46,27 +46,25 @@ fn extension_hook(
                 env.spawn_background({
                     let timer_ref = timer_ref.clone();
                     let timer_refs = Arc::clone(&timer_refs);
-                    move |_env| {
-                        Box::pin(async move {
-                            tokio::time::sleep(tokio::time::Duration::from_millis(duration as u64))
-                                .await;
+                    async move {
+                        tokio::time::sleep(tokio::time::Duration::from_millis(duration as u64))
+                            .await;
 
-                            {
-                                let mut timer_refs = timer_refs.lock();
-                                if !timer_refs.remove(&timer_ref) {
-                                    return Ok(());
-                                }
+                        {
+                            let mut timer_refs = timer_refs.lock();
+                            if !timer_refs.remove(&timer_ref) {
+                                return Ok(());
                             }
+                        }
 
-                            callback
-                                .call_async(
-                                    thread_safe_function::map_arguments::noop,
-                                    thread_safe_function::map_return::noop,
-                                )
-                                .await?;
+                        callback
+                            .call_async(
+                                thread_safe_function::map_arguments::noop,
+                                thread_safe_function::map_return::noop,
+                            )
+                            .await?;
 
-                            Ok(())
-                        })
+                        Ok(())
                     }
                 })?;
 
