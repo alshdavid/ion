@@ -16,7 +16,7 @@ use self::worker_pool::WorkerPool;
 
 pub fn main() -> anyhow::Result<()> {
     // Start the runtime from the main thread
-    let runtime = JsRuntime::initialize_once()?;
+    let runtime = JsRuntime::initialize_debug()?;
 
     // Register extensions
     runtime.register_extension(ion::extensions::console())?;

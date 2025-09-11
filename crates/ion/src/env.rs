@@ -12,11 +12,9 @@ use crate::JsObject;
 use crate::platform::JsRealm;
 use crate::platform::Value;
 use crate::platform::background_worker::BackgroundTaskManager;
+use crate::platform::finalizer_registry::FinalizerRegistery;
 use crate::platform::module::Module;
-use crate::platform::v8::__v8_context;
-use crate::platform::v8::__v8_global_this;
-use crate::platform::v8::v8_get_context;
-use crate::platform::v8::v8_get_global_this;
+use crate::platform::sys;
 use crate::platform::worker::JsWorkerEvent;
 use crate::utils::RefCounter;
 use crate::utils::generate_random_string;
@@ -26,23 +24,25 @@ pub struct Env {
     pub(crate) inner: *mut Env,
     pub(crate) realm_id: usize,
     pub(crate) isolate: *mut v8::Isolate,
-    pub(crate) context: __v8_context,
-    pub(crate) global_this: __v8_global_this,
+    pub(crate) context: sys::__v8_context,
+    pub(crate) global_this: sys::__v8_global_this,
     pub(crate) background_task_manager: Arc<BackgroundTaskManager>,
     pub(crate) global_refs: RefCounter,
     pub(crate) shutdown_requested: Rc<RefCell<bool>>,
     pub(crate) tx: Sender<JsWorkerEvent>,
+    pub(crate) finalizer_registry: FinalizerRegistery,
 }
 
 impl Env {
     pub(crate) fn new(
         isolate: *mut v8::Isolate,
-        context: __v8_context,
-        global_this: __v8_global_this,
+        context: sys::__v8_context,
+        global_this: sys::__v8_global_this,
         background_task_manager: Arc<BackgroundTaskManager>,
         global_refs: RefCounter,
         shutdown_requested: Rc<RefCell<bool>>,
         tx: Sender<JsWorkerEvent>,
+        finalizer_registry: FinalizerRegistery,
     ) -> Box<Self> {
         let mut env = Box::new(Env {
             realm_id: 0,
@@ -53,6 +53,7 @@ impl Env {
             inner: std::ptr::null_mut(),
             global_refs,
             shutdown_requested,
+            finalizer_registry,
             tx,
         });
 
@@ -115,16 +116,16 @@ impl Env {
     }
 
     pub fn global_this(&self) -> crate::Result<JsObject> {
-        let v = v8_get_global_this(self.global_this);
+        let v = sys::v8_get_global_this(self.global_this);
         JsObject::from_js_value(self, Value::from(v.cast()))
     }
 
     pub fn context(&self) -> v8::Local<'static, v8::Context> {
-        v8_get_context(self.context)
+        sys::v8_get_context(self.context)
     }
 
     pub fn scope(&self) -> v8::CallbackScope<'static> {
-        let context = v8_get_context(self.context);
+        let context = sys::v8_get_context(self.context);
         unsafe { v8::CallbackScope::new(context) }
     }
 
@@ -175,6 +176,7 @@ impl Env {
         &self,
         code: impl AsRef<str>,
     ) -> crate::Result<JsObject> {
+        // TODO cache a module based on its content hash otherwise it will leak
         let scope = &mut self.scope();
         let realm = JsRealm::v8_revive(scope);
 

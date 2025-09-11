@@ -3,8 +3,6 @@ use std::marker::PhantomData;
 
 use crate::Env;
 use crate::ToJsUnknown;
-use crate::platform::Reference;
-use crate::platform::ReferenceOwnership;
 use crate::platform::Value;
 use crate::utils::RefCounter;
 use crate::values::FromJsValue;
@@ -30,20 +28,14 @@ impl<T> JsExternal<T> {
         let ref_count = RefCounter::new(2);
 
         let value = v8::External::new(scope, ptr as _);
-        Reference::register_global_finalizer(
-            value.into(),
-            env.into_raw(),
-            1,
-            ReferenceOwnership::Rust,
-            Some(Box::new({
-                let ref_count = ref_count.clone();
-                move |_| {
-                    if ref_count.dec() {
-                        drop(unsafe { Box::from_raw(ptr as *mut T) });
-                    }
+        env.finalizer_registry.register(&value.into(), {
+            let ref_count = ref_count.clone();
+            move || {
+                if ref_count.dec() {
+                    drop(unsafe { Box::from_raw(ptr as *mut T) });
                 }
-            })),
-        );
+            }
+        });
 
         Ok(Self {
             value: Value::from(value.cast()),

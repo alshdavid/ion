@@ -16,9 +16,10 @@ impl RefCounter {
         Self(Rc::new(RefCell::new(start)))
     }
 
-    pub fn inc(&self) {
+    pub fn inc(&self) -> usize {
         let mut count = self.0.borrow_mut();
         (*count) += 1;
+        *count
     }
 
     pub fn dec(&self) -> bool {

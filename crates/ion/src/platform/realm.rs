@@ -8,18 +8,9 @@ use crate::DynResolver;
 use crate::Env;
 use crate::fs::FileSystem;
 use crate::platform::background_worker::BackgroundTaskManager;
+use crate::platform::finalizer_registry::FinalizerRegistery;
 use crate::platform::module_map::ModuleMap;
-use crate::platform::v8::__v8_context;
-use crate::platform::v8::__v8_global_this;
-use crate::platform::v8::v8_drop_context_scope;
-use crate::platform::v8::v8_drop_root_scope;
-use crate::platform::v8::v8_get_context;
-use crate::platform::v8::v8_get_context_scope;
-use crate::platform::v8::v8_get_root_scope;
-use crate::platform::v8::v8_new_context;
-use crate::platform::v8::v8_new_context_scope;
-use crate::platform::v8::v8_new_global_this;
-use crate::platform::v8::v8_new_root_scope;
+use crate::platform::sys;
 use crate::platform::worker::JsWorkerEvent;
 use crate::utils::RefCounter;
 use crate::utils::channel::oneshot;
@@ -31,14 +22,15 @@ pub struct JsRealm {
     pub(crate) id: usize,
     pub(crate) env: Box<Env>,
     pub(crate) background_task_manager: Arc<BackgroundTaskManager>,
+    pub(crate) finalizer_registry: FinalizerRegistery,
     /// Used to tell the Worker if there are any long-lived async tasks
     /// that should prevent the context from being shutdown
     pub(crate) global_refs: RefCounter,
     pub(crate) shutdown_requested: Rc<RefCell<bool>>,
     pub(crate) modules: ModuleMap,
     pub(crate) tx: Sender<JsWorkerEvent>,
-    pub(crate) global_this: __v8_global_this,
-    pub(crate) context: __v8_context,
+    pub(crate) global_this: sys::__v8_global_this,
+    pub(crate) context: sys::__v8_context,
 }
 
 impl JsRealm {
@@ -50,26 +42,29 @@ impl JsRealm {
         tx: Sender<JsWorkerEvent>,
     ) -> Box<Self> {
         let context = {
-            let handle_scope = v8_new_root_scope(v8::HandleScope::new(unsafe { &mut *isolate }));
-            let context = v8_new_context(isolate, v8_get_root_scope(handle_scope));
-            v8_drop_root_scope(handle_scope);
+            let handle_scope =
+                sys::v8_new_root_scope(v8::HandleScope::new(unsafe { &mut *isolate }));
+            let context = sys::v8_new_context(isolate, sys::v8_get_root_scope(handle_scope));
+            sys::v8_drop_root_scope(handle_scope);
             context
         };
 
         let global_this = {
-            let handle_scope = v8_new_root_scope(v8::HandleScope::new(unsafe { &mut *isolate }));
-            let context_scope = v8_new_context_scope(v8::ContextScope::new(
-                v8_get_root_scope(handle_scope),
-                v8_get_context(context),
+            let handle_scope =
+                sys::v8_new_root_scope(v8::HandleScope::new(unsafe { &mut *isolate }));
+            let context_scope = sys::v8_new_context_scope(v8::ContextScope::new(
+                sys::v8_get_root_scope(handle_scope),
+                sys::v8_get_context(context),
             ));
-            let global_this = v8_new_global_this(context, context_scope);
-            v8_drop_context_scope(context_scope);
-            v8_drop_root_scope(handle_scope);
+            let global_this = sys::v8_new_global_this(context, context_scope);
+            sys::v8_drop_context_scope(context_scope);
+            sys::v8_drop_root_scope(handle_scope);
             global_this
         };
 
         let global_refs = RefCounter::new(0);
         let shutdown_requested = Rc::new(RefCell::new(false));
+        let finalizer_registry = FinalizerRegistery::new(isolate);
 
         // TODO make these RefCells
         let modules: ModuleMap = ModuleMap::default();
@@ -82,17 +77,8 @@ impl JsRealm {
             global_refs.clone(),
             Rc::clone(&shutdown_requested),
             tx.clone(),
+            finalizer_registry.clone(),
         );
-
-        // let context = unsafe {
-        //     println!("{}", Rc::strong_count(&context));
-        //     let c = Rc::into_raw(context);
-        //     let context =Rc::from_raw(c);
-        //     Rc::decrement_strong_count(&c);
-        //     Rc::decrement_strong_count(&global_this);
-        //     println!("{}", Rc::strong_count(&env.context));
-        //     context
-        // };
 
         let mut realm = Box::new(JsRealm {
             id: 0,
@@ -103,6 +89,7 @@ impl JsRealm {
             resolvers,
             global_refs,
             shutdown_requested,
+            finalizer_registry,
             // v8 internals
             global_this,
             context,
@@ -115,19 +102,20 @@ impl JsRealm {
 
         {
             // TODO use slot or data
-            let handle_scope = v8_new_root_scope(v8::HandleScope::new(unsafe { &mut *isolate }));
-            let context_scope = v8_new_context_scope(v8::ContextScope::new(
-                v8_get_root_scope(handle_scope),
-                v8_get_context(context),
+            let handle_scope =
+                sys::v8_new_root_scope(v8::HandleScope::new(unsafe { &mut *isolate }));
+            let context_scope = sys::v8_new_context_scope(v8::ContextScope::new(
+                sys::v8_get_root_scope(handle_scope),
+                sys::v8_get_context(context),
             ));
-            let scope = v8_get_context_scope(context_scope);
+            let scope = sys::v8_get_context_scope(context_scope);
             let key = v8::String::new(scope, "__data").unwrap();
             let value = v8::External::new(scope, realm_ptr as _);
-            let global_this = v8_get_context(realm.context).global(scope);
+            let global_this = sys::v8_get_context(realm.context).global(scope);
             global_this.set(scope, key.into(), value.into());
 
-            v8_drop_context_scope(context_scope);
-            v8_drop_root_scope(handle_scope);
+            sys::v8_drop_context_scope(context_scope);
+            sys::v8_drop_root_scope(handle_scope);
         }
 
         realm.id = realm_id;

@@ -5,8 +5,6 @@ use crate::JsObject;
 use crate::JsObjectValue;
 use crate::JsValuesTupleIntoVec;
 use crate::ToJsUnknown;
-use crate::platform::Reference;
-use crate::platform::ReferenceOwnership;
 use crate::platform::Value;
 use crate::utils::v8::v8_create_undefined;
 use crate::values::FromJsValue;
@@ -36,14 +34,11 @@ impl JsFunction {
             callback,
         }));
         let external = v8::External::new(scope, callback as _);
-
-        Reference::register_global_finalizer(
-            external.into(),
-            env.into_raw(),
-            1,
-            ReferenceOwnership::Rust,
-            Some(Box::new(move |_| drop(unsafe { Box::from_raw(callback) }))),
-        );
+        env.finalizer_registry.register(&external.into(), {
+            move || {
+                drop(unsafe { Box::from_raw(callback) });
+            }
+        });
 
         let value = v8::Function::builder(
             |_scope: &mut v8::HandleScope,

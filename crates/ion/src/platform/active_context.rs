@@ -1,16 +1,7 @@
-use crate::platform::v8::__v8_context;
-use crate::platform::v8::__v8_context_scope;
-use crate::platform::v8::__v8_root_scope;
-use crate::platform::v8::v8_drop_context_scope;
-use crate::platform::v8::v8_drop_root_scope;
-use crate::platform::v8::v8_get_context;
-use crate::platform::v8::v8_get_context_address;
-use crate::platform::v8::v8_get_root_scope;
-use crate::platform::v8::v8_new_context_scope;
-use crate::platform::v8::v8_new_root_scope;
+use crate::platform::sys;
 
 pub struct ActiveContext {
-    current: Option<(usize, __v8_context_scope, __v8_root_scope)>,
+    current: Option<(usize, sys::__v8_context_scope, sys::__v8_root_scope)>,
     isolate: *mut v8::Isolate,
 }
 
@@ -37,10 +28,10 @@ impl ActiveContext {
 
     pub fn set(
         &mut self,
-        context: __v8_context,
+        context: sys::__v8_context,
     ) -> bool {
         if let Some((id, _, _)) = self.current
-            && id == v8_get_context_address(context)
+            && id == sys::v8_get_context_address(context)
         {
             return false;
         }
@@ -49,14 +40,18 @@ impl ActiveContext {
         self.unset();
 
         // Create new context and put it on the stack
-        let handle_scope = v8_new_root_scope(v8::HandleScope::new(unsafe { &mut *self.isolate }));
-        let context_scope = v8_new_context_scope(v8::ContextScope::new(
-            v8_get_root_scope(handle_scope),
-            v8_get_context(context),
+        let handle_scope =
+            sys::v8_new_root_scope(v8::HandleScope::new(unsafe { &mut *self.isolate }));
+        let context_scope = sys::v8_new_context_scope(v8::ContextScope::new(
+            sys::v8_get_root_scope(handle_scope),
+            sys::v8_get_context(context),
         ));
 
-        self.current
-            .replace((v8_get_context_address(context), context_scope, handle_scope));
+        self.current.replace((
+            sys::v8_get_context_address(context),
+            context_scope,
+            handle_scope,
+        ));
 
         return true;
     }
@@ -71,15 +66,15 @@ impl ActiveContext {
             return None;
         };
         Some((
-            v8_drop_context_scope(context_scope),
-            v8_drop_root_scope(handle_scope),
+            sys::v8_drop_context_scope(context_scope),
+            sys::v8_drop_root_scope(handle_scope),
         ))
     }
 
     pub fn unset(&mut self) {
         if let Some((_id, context_scope, handle_scope)) = self.current.take() {
-            v8_drop_context_scope(context_scope);
-            v8_drop_root_scope(handle_scope);
+            sys::v8_drop_context_scope(context_scope);
+            sys::v8_drop_root_scope(handle_scope);
         }
     }
 }

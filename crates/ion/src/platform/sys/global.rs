@@ -1,6 +1,6 @@
-use crate::platform::v8::__v8_context_scope;
-use crate::platform::v8::v8_get_context;
-use crate::platform::v8::v8_get_context_scope;
+use super::__v8_context_scope;
+use super::v8_get_context;
+use super::v8_get_context_scope;
 
 use super::__v8_context;
 

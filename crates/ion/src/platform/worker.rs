@@ -13,10 +13,8 @@ use crate::DynResolver;
 use crate::Env;
 use crate::JsExtension;
 use crate::fs::FileSystem;
-use crate::platform::Reference;
 use crate::platform::background_worker::BackgroundTaskManager;
-use crate::platform::v8::v8_drop_context;
-use crate::platform::v8::v8_drop_global_this;
+use crate::platform::sys;
 use crate::utils::HashMapExt;
 use crate::utils::PathExt;
 
@@ -150,14 +148,15 @@ fn worker_thread(
 
                 let context = realm.context;
                 let global_this = realm.global_this;
+                let finalizer_registry = realm.finalizer_registry;
 
                 drop(context_scope);
                 drop(handle_scope);
 
-                Reference::clear_references(&realm.env);
-
-                drop(v8_drop_global_this(global_this));
-                drop(v8_drop_context(context));
+                drop(sys::v8_drop_global_this(global_this));
+                drop(sys::v8_drop_context(context));
+                finalizer_registry.clear();
+                drop(finalizer_registry);
 
                 for resolver in shutdown_context_senders.remove(&id).unwrap_or_default() {
                     let _ = resolver.try_send(());
@@ -214,7 +213,7 @@ fn worker_thread(
                 break;
             }
             JsWorkerEvent::RunGarbageCollectionForTesting { resolve } => {
-                // isolate.request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
+                isolate.request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
                 resolve.try_send(())?;
             }
         }

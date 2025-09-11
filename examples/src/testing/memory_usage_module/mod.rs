@@ -16,26 +16,14 @@ pub fn main() -> anyhow::Result<()> {
 
     for i in 2..50 {
         let ctx = worker.create_context()?;
-        let mut v = vec![];
 
         for _ in 2..1000 {
-            let tsfn = ctx.exec_blocking(|env| {
-                let func = JsFunction::new(env, |_env, ctx| ctx.arg::<JsNumber>(0))?;
-                ThreadSafeFunction::new(&func)
+            ctx.exec_blocking(|env| {
+                env.eval_module("export {}")?;
+                Ok(())
             })?;
-
-            tsfn.call_blocking(
-                // Map Args
-                |_env| Ok(42),
-                // Map Ret
-                move |_env, ret| Ok(ret.cast::<JsNumber>()?.get_u32()?),
-            )
-            .unwrap();
-
-            v.push(tsfn);
         }
 
-        v.clear();
         worker.run_garbage_collection_for_testing()?;
         println!("[{}] {:?}", i, memu);
         thread::sleep(Duration::from_millis(100));

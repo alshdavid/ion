@@ -43,6 +43,8 @@ impl WorkerPool {
                         if ctx.exec(callback).is_err() {
                             eprintln!("Error communicating with JavaScript")
                         }
+
+                        worker.run_garbage_collection_for_testing()?;
                     }
 
                     Ok(())

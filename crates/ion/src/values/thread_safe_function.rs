@@ -39,8 +39,8 @@ impl ThreadSafeFunction {
         let value = target.value();
         let handle = value.inner();
         let inner = v8::Global::new(scope, handle);
-        let inner = Arc::new(inner);
-        let inner = Arc::into_raw(inner);
+        let inner = Box::new(inner);
+        let inner = Box::into_raw(inner);
         let inner = inner as usize;
 
         Ok(Self {
@@ -115,8 +115,8 @@ impl ThreadSafeFunction {
             self.env.exec(move |env| {
                 let scope = &mut env.scope();
 
-                let inner = inner as *const v8::Local<'static, v8::Function>;
-                let inner = unsafe { Arc::from_raw(inner) };
+                let inner = inner as *mut v8::Global<v8::Function>;
+                let inner = unsafe { Box::from_raw(inner) };
 
                 env.dec_ref();
                 Ok(())
