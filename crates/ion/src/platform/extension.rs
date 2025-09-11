@@ -40,10 +40,10 @@ impl Extension {
                     // TEMP, use data or statics or something
                     {
                         let global_this = env.global_this()?;
-                        let global_this = global_this.value().inner().cast::<v8::Object>();
+                        let global_this = global_this.value().cast::<v8::Object>();
                         let key = v8::Integer::new(scope, v8_module.get_identity_hash().into());
-                        let value = exports.value().inner();
-                        global_this.set(scope, key.into(), value);
+                        let value = exports.value();
+                        global_this.set(scope, key.into(), *value);
                     };
 
                     // Initialize extension module

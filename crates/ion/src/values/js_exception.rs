@@ -1,14 +1,14 @@
 // TODO
 use crate::Env;
 use crate::ToJsUnknown;
-use crate::platform::Value;
+use crate::platform::sys;
 use crate::values::FromJsValue;
 use crate::values::JsValue;
 use crate::values::ToJsValue;
 
 #[derive(Clone)]
 pub struct JsException {
-    pub(crate) value: Value,
+    pub(crate) value: sys::__v8_value,
     pub(crate) env: Env,
 }
 
@@ -26,7 +26,7 @@ impl JsException {
 }
 
 impl JsValue for JsException {
-    fn value(&self) -> &Value {
+    fn value(&self) -> &sys::__v8_value {
         &self.value
     }
 
@@ -40,7 +40,7 @@ impl ToJsUnknown for JsException {}
 impl FromJsValue for JsException {
     fn from_js_value(
         env: &Env,
-        value: Value,
+        value: sys::__v8_value,
     ) -> crate::Result<Self> {
         Ok(Self {
             value,
@@ -53,7 +53,7 @@ impl ToJsValue for JsException {
     fn to_js_value(
         _env: &Env,
         val: Self,
-    ) -> crate::Result<Value> {
+    ) -> crate::Result<sys::__v8_value> {
         Ok(val.value)
     }
 }

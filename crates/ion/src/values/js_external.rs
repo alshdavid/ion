@@ -3,14 +3,14 @@ use std::marker::PhantomData;
 
 use crate::Env;
 use crate::ToJsUnknown;
-use crate::platform::Value;
+use crate::platform::sys;
 use crate::utils::RefCounter;
 use crate::values::FromJsValue;
 use crate::values::JsValue;
 use crate::values::ToJsValue;
 
 pub struct JsExternal<T> {
-    pub(crate) value: Value,
+    pub(crate) value: sys::__v8_value,
     pub(crate) env: Env,
     ptr: *mut c_void,
     ref_count: RefCounter,
@@ -38,7 +38,7 @@ impl<T> JsExternal<T> {
         });
 
         Ok(Self {
-            value: Value::from(value.cast()),
+            value: sys::v8_from_value(value),
             env: env.clone(),
             ptr,
             ref_count,
@@ -47,8 +47,7 @@ impl<T> JsExternal<T> {
     }
 
     pub fn as_inner(&self) -> crate::Result<&T> {
-        let value = self.value.inner();
-        let value = value.cast::<v8::External>();
+        let value = self.value.cast::<v8::External>();
         let ptr = value.value();
         let data = unsafe { &*(ptr as *mut T) };
         Ok(data)
@@ -78,7 +77,7 @@ impl<T> Drop for JsExternal<T> {
 }
 
 impl<T> JsValue for JsExternal<T> {
-    fn value(&self) -> &Value {
+    fn value(&self) -> &sys::__v8_value {
         &self.value
     }
 
@@ -92,9 +91,9 @@ impl<T> ToJsUnknown for JsExternal<T> {}
 impl<T> FromJsValue for JsExternal<T> {
     fn from_js_value(
         env: &Env,
-        value: Value,
+        value: sys::__v8_value,
     ) -> crate::Result<Self> {
-        let external = value.inner().cast::<v8::External>();
+        let external = value.cast::<v8::External>();
         let ptr = external.value();
         Ok(Self {
             value,
@@ -110,7 +109,7 @@ impl<T> ToJsValue for JsExternal<T> {
     fn to_js_value(
         _env: &Env,
         val: Self,
-    ) -> crate::Result<Value> {
+    ) -> crate::Result<sys::__v8_value> {
         Ok(val.value.clone())
     }
 }

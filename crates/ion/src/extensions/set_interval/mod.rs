@@ -10,9 +10,9 @@ use crate::JsNumber;
 use crate::JsObject;
 use crate::JsObjectValue;
 use crate::JsString;
-use crate::JsValue;
 use crate::ThreadSafeFunction;
 use crate::thread_safe_function;
+use crate::utils::AtomicRefCounter;
 
 static MODULE_NAME: &str = "ion:timers/interval";
 static BINDING: &str = include_str!("./binding.js");
@@ -22,11 +22,13 @@ fn extension_hook(
     exports: &mut JsObject,
 ) -> crate::Result<()> {
     let timer_refs = Arc::new(RwLock::new(HashSet::<String>::new()));
-
+    let ref_count = AtomicRefCounter::default();
+    
     exports.set_named_property(
         "setInterval",
         JsFunction::new(env, {
             let timer_refs = Arc::clone(&timer_refs);
+            let ref_count = ref_count.clone();
 
             move |env, ctx| {
                 let arg0 = ctx.arg::<JsFunction>(0)?;
@@ -34,7 +36,7 @@ fn extension_hook(
 
                 let callback = ThreadSafeFunction::new(&arg0)?;
                 let duration = arg1.get_u32()?;
-                let timer_ref = format!("{}", arg1.value().address());
+                let timer_ref = format!("{}", ref_count.inc());
 
                 {
                     let mut timer_refs = timer_refs.write();

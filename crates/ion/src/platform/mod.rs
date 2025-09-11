@@ -12,4 +12,3 @@ pub(crate) mod sys;
 pub(crate) mod worker;
 
 pub(crate) use realm::*;
-pub use sys::Value;

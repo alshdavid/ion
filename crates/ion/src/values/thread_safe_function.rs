@@ -14,7 +14,7 @@ use crate::JsFunction;
 use crate::JsUnknown;
 use crate::JsValue;
 use crate::JsValuesTupleIntoVec;
-use crate::platform::Value;
+use crate::platform::sys;
 use crate::utils::RefCounter;
 use crate::utils::channel::oneshot;
 
@@ -36,9 +36,8 @@ impl ThreadSafeFunction {
         env.inc_ref();
 
         // SAFETY: Force function to be Send + Sync
-        let value = target.value();
-        let handle = value.inner();
-        let inner = v8::Global::new(scope, handle);
+        let inner = *target.value();
+        let inner = v8::Global::new(scope, inner);
         let inner = Box::new(inner);
         let inner = Box::into_raw(inner);
         let inner = inner as usize;
@@ -64,15 +63,12 @@ impl ThreadSafeFunction {
             let inner = unsafe { &*inner };
             let inner = v8::Local::new(scope, *inner);
 
-            let mut arguments = vec![];
-            for value in map_arguments(env)?.into_vec(env)? {
-                arguments.push(value.inner());
-            }
+            let mut arguments = map_arguments(env)?.into_vec(env)?;
 
             let recv = v8::undefined(scope);
             let ret = inner.call(scope, recv.into(), &arguments).unwrap();
 
-            let ret = JsUnknown::from_js_value(&env, Value::from(ret))?;
+            let ret = JsUnknown::from_js_value(&env, ret)?;
             map_return(&env, ret)?;
 
             Ok(())

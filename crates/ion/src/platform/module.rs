@@ -252,7 +252,7 @@ pub(crate) unsafe extern "C" fn init_meta_callback(
     // TEMP, use data or statics or something
     {
         let global_this = env.global_this().unwrap();
-        let global_this = global_this.value().inner().cast::<v8::Object>();
+        let global_this = global_this.value().cast::<v8::Object>();
         let key = v8::Integer::new(scope, module.get_identity_hash().into());
         if let Some(exports) = global_this.get(scope, key.into()) {
             global_this.delete(scope, key.into()).unwrap();

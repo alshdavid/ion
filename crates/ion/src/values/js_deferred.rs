@@ -11,7 +11,7 @@ use crate::JsObject;
 use crate::JsObjectValue;
 use crate::JsUnknown;
 use crate::ThreadSafeFunction;
-use crate::platform::Value;
+use crate::platform::sys;
 use crate::thread_safe_function;
 use crate::utils::channel::oneshot;
 use crate::values::ToJsValue;
@@ -123,6 +123,6 @@ unsafe impl Sync for JsDeferred {}
 
 #[allow(clippy::type_complexity)]
 enum JsDeferredEvent {
-    Resolve(Box<dyn Send + Sync + FnOnce(&Env) -> crate::Result<Value>>),
-    Reject(Box<dyn Send + Sync + FnOnce(&Env) -> crate::Result<Value>>),
+    Resolve(Box<dyn Send + Sync + FnOnce(&Env) -> crate::Result<sys::__v8_value>>),
+    Reject(Box<dyn Send + Sync + FnOnce(&Env) -> crate::Result<sys::__v8_value>>),
 }

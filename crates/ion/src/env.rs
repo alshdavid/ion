@@ -10,7 +10,6 @@ use crate::AsyncEnv;
 use crate::FromJsValue;
 use crate::JsObject;
 use crate::platform::JsRealm;
-use crate::platform::Value;
 use crate::platform::background_worker::BackgroundTaskManager;
 use crate::platform::finalizer_registry::FinalizerRegistery;
 use crate::platform::module::Module;
@@ -117,7 +116,7 @@ impl Env {
 
     pub fn global_this(&self) -> crate::Result<JsObject> {
         let v = sys::v8_get_global_this(self.global_this);
-        JsObject::from_js_value(self, Value::from(v.cast()))
+        JsObject::from_js_value(self, sys::v8_from_value(v))
     }
 
     pub fn context(&self) -> v8::Local<'static, v8::Context> {
@@ -169,7 +168,7 @@ impl Env {
             panic!();
         };
 
-        Return::from_js_value(self, Value::from(value))
+        Return::from_js_value(self, sys::v8_from_value(value))
     }
 
     pub fn eval_module(
@@ -185,7 +184,7 @@ impl Env {
         let v8_module = Module::v8_run_module(true, realm, module.name.clone(), module)?;
         let v8_module = v8_module.get_module_namespace().cast::<v8::Object>();
 
-        JsObject::from_js_value(self, Value::from(v8_module.cast()))
+        JsObject::from_js_value(self, sys::v8_from_value(v8_module))
     }
 
     /// Load a file and evaluate it

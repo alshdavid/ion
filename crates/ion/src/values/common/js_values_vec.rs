@@ -1,12 +1,12 @@
 use crate::Env;
 use crate::ToJsValue;
-use crate::platform::Value;
+use crate::platform::sys;
 
 pub trait JsValuesTupleIntoVec {
     fn into_vec(
         self,
         env: &Env,
-    ) -> crate::Result<Vec<Value>>;
+    ) -> crate::Result<Vec<sys::__v8_value>>;
 }
 
 impl<T> JsValuesTupleIntoVec for T
@@ -17,7 +17,7 @@ where
     fn into_vec(
         self,
         env: &Env,
-    ) -> crate::Result<Vec<Value>> {
+    ) -> crate::Result<Vec<sys::__v8_value>> {
         // allow call function with `()` and function's arguments should be empty array
         if std::mem::size_of::<T>() == 0 {
             Ok(vec![])
@@ -31,7 +31,7 @@ pub trait TupleFromSliceValues {
     #[allow(clippy::missing_safety_doc)]
     unsafe fn from_slice_values(
         env: &Env,
-        values: &[Value],
+        values: &[sys::__v8_value],
     ) -> crate::Result<Self>
     where
         Self: Sized;
@@ -67,7 +67,7 @@ impl<A: ToJsValue, B: ToJsValue> JsValuesTupleIntoVec for (A, B) {
     fn into_vec(
         self,
         env: &Env,
-    ) -> crate::Result<Vec<Value>> {
+    ) -> crate::Result<Vec<sys::__v8_value>> {
         Ok(vec![
             A::to_js_value(env, self.0)?,
             B::to_js_value(env, self.1)?,
@@ -79,7 +79,7 @@ impl<A: ToJsValue, B: ToJsValue, C: ToJsValue> JsValuesTupleIntoVec for (A, B, C
     fn into_vec(
         self,
         env: &Env,
-    ) -> crate::Result<Vec<Value>> {
+    ) -> crate::Result<Vec<sys::__v8_value>> {
         Ok(vec![
             A::to_js_value(env, self.0)?,
             B::to_js_value(env, self.1)?,
@@ -92,7 +92,7 @@ impl<A: ToJsValue, B: ToJsValue, C: ToJsValue, D: ToJsValue> JsValuesTupleIntoVe
     fn into_vec(
         self,
         env: &Env,
-    ) -> crate::Result<Vec<Value>> {
+    ) -> crate::Result<Vec<sys::__v8_value>> {
         Ok(vec![
             A::to_js_value(env, self.0)?,
             B::to_js_value(env, self.1)?,
@@ -108,7 +108,7 @@ impl<A: ToJsValue, B: ToJsValue, C: ToJsValue, D: ToJsValue, E: ToJsValue> JsVal
     fn into_vec(
         self,
         env: &Env,
-    ) -> crate::Result<Vec<Value>> {
+    ) -> crate::Result<Vec<sys::__v8_value>> {
         Ok(vec![
             A::to_js_value(env, self.0)?,
             B::to_js_value(env, self.1)?,
@@ -125,7 +125,7 @@ impl<A: ToJsValue, B: ToJsValue, C: ToJsValue, D: ToJsValue, E: ToJsValue, F: To
     fn into_vec(
         self,
         env: &Env,
-    ) -> crate::Result<Vec<Value>> {
+    ) -> crate::Result<Vec<sys::__v8_value>> {
         Ok(vec![
             A::to_js_value(env, self.0)?,
             B::to_js_value(env, self.1)?,
