@@ -9,5 +9,6 @@ pub mod multiple_contexts;
 pub mod multiple_workers;
 pub mod transformers;
 pub mod typescript;
+pub mod wait;
 
 pub use memory_usage::*;
