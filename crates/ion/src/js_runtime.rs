@@ -32,6 +32,29 @@ pub struct JsRuntimeOptions {
     pub extensions: Vec<JsExtension>,
 }
 
+impl JsRuntimeOptions {
+    /// Apply debugging arguments to options
+    pub fn debug(options: JsRuntimeOptions) -> Self {
+        let mut v8_args = vec![
+            "--no_freeze_flags_after_init".to_string(),
+            "--expose_gc".to_string(),
+            "--harmony-shadow-realm".to_string(),
+            "--allow_natives_syntax".to_string(),
+            "--turbo_fast_api_calls".to_string(),
+            "--js-source-phase-imports".to_string(),
+        ];
+
+        v8_args.extend(options.v8_args);
+
+        JsRuntimeOptions {
+            v8_args,
+            extensions: options.extensions,
+            transformers: options.transformers,
+            resolvers: options.resolvers,
+        }
+    }
+}
+
 /// JsRuntime is a handle to the underlying v8 engine. It can spawn worker threads and
 /// evaluate JavaScript within Contexts
 #[derive(Clone, Debug)]
@@ -40,9 +63,30 @@ pub struct JsRuntime {
 }
 
 impl JsRuntime {
-    /// Initialize the v8 runtime, this can only be done once per process.
-    /// Subsequent calls will return the first instance of [`JsRuntime`]
-    pub fn initialize_once(options: JsRuntimeOptions) -> crate::Result<Arc<JsRuntime>> {
+    /// Method to allow initialisation of V8 on the current thread,
+    /// rather than the dedicated Ion platform thread. Allows Ion to be used
+    /// alongside other runtimes/isolate management on x86 platforms.
+    pub fn initialize_local(options: JsRuntimeOptions) -> crate::Result<Arc<JsRuntime>> {
+        let platform = v8::new_default_platform(0, false).make_shared();
+
+        if !options.v8_args.is_empty() {
+            let args = options
+                .v8_args
+                .iter()
+                .map(|v| v.to_string())
+                .collect::<Vec<String>>()
+                .join(" ");
+
+            v8::V8::set_flags_from_string(&args);
+        }
+
+        v8::V8::initialize_platform(platform);
+        v8::V8::initialize();
+
+        // Mark as initialized to prevent double initialization
+        crate::platform::platform::HAS_INIT.store(true, std::sync::atomic::Ordering::Release);
+
+        // Return the runtime instance, same as regular initialization
         JS_RUNTIME
             .get_or_init(move || {
                 let args = options
@@ -53,6 +97,7 @@ impl JsRuntime {
 
                 if PLATFORM
                     .send(PlatformEvent::Init {
+                        skip_init: true,
                         args,
                         extensions: options.extensions,
                         transformers: options.transformers,
@@ -70,24 +115,35 @@ impl JsRuntime {
             .clone()
     }
 
-    pub fn initialize_debug(options: JsRuntimeOptions) -> crate::Result<Arc<JsRuntime>> {
-        let mut v8_args = vec![
-            "--no_freeze_flags_after_init".to_string(),
-            "--expose_gc".to_string(),
-            "--harmony-shadow-realm".to_string(),
-            "--allow_natives_syntax".to_string(),
-            "--turbo_fast_api_calls".to_string(),
-            "--js-source-phase-imports".to_string(),
-        ];
+    /// Initialize the v8 runtime, this can only be done once per process.
+    /// Subsequent calls will return the first instance of [`JsRuntime`]
+    pub fn initialize_once(options: JsRuntimeOptions) -> crate::Result<Arc<JsRuntime>> {
+        JS_RUNTIME
+            .get_or_init(move || {
+                let args = options
+                    .v8_args
+                    .iter()
+                    .map(|v| v.to_string())
+                    .collect::<Vec<String>>();
 
-        v8_args.extend(options.v8_args);
+                if PLATFORM
+                    .send(PlatformEvent::Init {
+                        skip_init: false,
+                        args,
+                        extensions: options.extensions,
+                        transformers: options.transformers,
+                        resolvers: options.resolvers,
+                    })
+                    .is_err()
+                {
+                    return Err(crate::Error::PlatformInitializeError);
+                };
 
-        Self::initialize_once(JsRuntimeOptions {
-            v8_args,
-            extensions: options.extensions,
-            transformers: options.transformers,
-            resolvers: options.resolvers,
-        })
+                Ok(Arc::new(JsRuntime {
+                    tx: PLATFORM.clone(),
+                }))
+            })
+            .clone()
     }
 
     /// Check if the v8 runtime has already been initialized

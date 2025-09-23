@@ -7,7 +7,7 @@ use ion::*;
 static CARGO_MANIFEST_DIR: &str = env!("CARGO_MANIFEST_DIR");
 
 pub fn main() -> anyhow::Result<()> {
-    let runtime = JsRuntime::initialize_debug(JsRuntimeOptions {
+    let runtime = JsRuntime::initialize_once(JsRuntimeOptions {
         resolvers: vec![custom_resolver()],
         ..Default::default()
     })?;
@@ -27,10 +27,10 @@ pub fn main() -> anyhow::Result<()> {
 }
 
 pub fn custom_resolver() -> JsResolver {
-    return Arc::new(|ctx: ResolverContext| -> JsResolverFut {
+    Arc::new(|ctx: ResolverContext| -> JsResolverFut {
         Box::pin(async move {
             println!("Custom Resolver Has Run For Path {:?}", ctx.from);
             Ok(None)
         })
-    });
+    })
 }

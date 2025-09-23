@@ -10,7 +10,7 @@ use crate::ResolverResult;
 use crate::utils::OsStringExt;
 
 pub fn relative() -> JsResolver {
-    return Arc::new(|ctx: ResolverContext| -> JsResolverFut {
+    Arc::new(|ctx: ResolverContext| -> JsResolverFut {
         Box::pin(async move {
             let mut specifier = PathBuf::from(ctx.specifier);
             if specifier.is_relative() {
@@ -33,7 +33,7 @@ pub fn relative() -> JsResolver {
                 kind,
             }))
         })
-    });
+    })
 }
 
 // TODO: virtual filesystem

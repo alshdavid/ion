@@ -18,6 +18,7 @@ pub struct TransformerContext {
     pub kind: String,
 }
 
+#[derive(Debug)]
 pub struct TransformerResult {
     /// The transformed JavaScript to run
     pub code: String,

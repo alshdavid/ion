@@ -164,7 +164,7 @@ impl Extension {
         transformers: &HashMap<String, Arc<JsTransformer>>,
     ) -> crate::Result<()> {
         for extension in extensions {
-            Self::register_extension(realm, &extension, transformers)?;
+            Self::register_extension(realm, extension, transformers)?;
         }
 
         Ok(())

@@ -44,6 +44,23 @@ fn transformer(ctx: TransformerContext) -> crate::Result<TransformerResult> {
 
     let parse_result = Parser::new(&allocator, &source, source_type).parse();
     if !parse_result.errors.is_empty() {
+        // If we're parsing a .ts file, it is common for users to accidentally include JSX.
+        // Re-parse in TSX mode to detect this case and emit a clearer error.
+        if ctx.kind == "ts" {
+            let allocator_tsx = Allocator::default();
+            let parse_as_tsx = Parser::new(&allocator_tsx, &source, SourceType::tsx()).parse();
+            // To avoid false positives (e.g. angle-bracket type assertions), also require
+            // an obvious JSX marker in the source when TS parsing fails but TSX parsing succeeds.
+            let looks_like_jsx =
+                source.contains("</") || source.contains("/>") || source.contains("<>");
+            if parse_as_tsx.errors.is_empty() && looks_like_jsx {
+                return Err(crate::Error::TransformerError(format!(
+                    "JSX syntax detected in a .ts file: {}. Rename the file to .tsx or remove JSX.",
+                    ctx.path.display()
+                )));
+            }
+        }
+
         let errors: Vec<String> = parse_result
             .errors
             .iter()
@@ -103,4 +120,35 @@ fn transformer(ctx: TransformerContext) -> crate::Result<TransformerResult> {
     Ok(TransformerResult {
         code: generated.code,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::JsTransformer;
+    use crate::TransformerContext;
+    use std::path::PathBuf;
+
+    #[test]
+    fn ts_with_jsx_returns_clear_error() {
+        let transformer: JsTransformer = ts();
+        let ctx = TransformerContext {
+            content: b"const x = <div/>;".to_vec(),
+            path: PathBuf::from("test.ts"),
+            kind: "ts".to_string(),
+        };
+
+        let err = (transformer.transformer)(ctx).unwrap_err();
+        match err {
+            crate::Error::TransformerError(msg) => {
+                assert!(
+                    msg.contains("JSX syntax detected in a .ts file"),
+                    "unexpected message: {}",
+                    msg
+                );
+                assert!(msg.contains("test.ts"), "path missing in message: {}", msg);
+            }
+            other => panic!("expected TransformerError, got {:?}", other),
+        }
+    }
 }
