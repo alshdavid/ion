@@ -68,7 +68,7 @@ impl Drop for JsWorker {
 
         if self
             .tx
-            .send(JsWorkerEvent::RequestShutdown { resolve: tx })
+            .send(JsWorkerEvent::RequestWorkerShutdown { resolve: tx })
             .is_err()
         {
             panic!("Cannot drop JsWorker 1");

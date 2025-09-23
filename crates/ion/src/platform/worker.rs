@@ -43,7 +43,7 @@ pub(crate) enum JsWorkerEvent {
         id: usize,
         specifier: String,
     },
-    RequestShutdown {
+    RequestWorkerShutdown {
         resolve: Sender<()>,
     },
     RunGarbageCollectionForTesting {
@@ -206,7 +206,7 @@ fn worker_thread(
                     std::env::current_dir()?.try_to_string()?,
                 )?;
             }
-            JsWorkerEvent::RequestShutdown { resolve } => {
+            JsWorkerEvent::RequestWorkerShutdown { resolve } => {
                 shutdown_senders.push(resolve);
                 shutdown_requested = true;
                 if !realms.is_empty() {
@@ -241,7 +241,7 @@ impl std::fmt::Debug for JsWorkerEvent {
             Self::RequestContextShutdown { id, resolve } => write!(f, "RequestContextShutdown"),
             Self::Exec { id, callback } => write!(f, "Exec"),
             Self::Import { id, specifier } => write!(f, "Import"),
-            Self::RequestShutdown { resolve } => write!(f, "RequestShutdown"),
+            Self::RequestWorkerShutdown { resolve } => write!(f, "RequestShutdown"),
             Self::RunGarbageCollectionForTesting { resolve } => {
                 write!(f, "RunGarbageCollectionForTesting")
             }

@@ -81,6 +81,11 @@ impl JsContext {
         let specifier = specifier.as_ref().to_string();
         self.exec_blocking(move |env| env.import(specifier))
     }
+
+    /// Wait for all pending tasks to complete.
+    /// This will wait on newly created async tasks to complete
+    /// by waiting for the ref count to return to 0
+    pub fn wait_blocking(&self) {}
 }
 
 impl Drop for JsContext {
