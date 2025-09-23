@@ -18,7 +18,7 @@ pub fn main() -> anyhow::Result<()> {
         ..Default::default()
     })?;
 
-    let wrk = rt.spawn_worker()?;
+    let wrk = rt.spawn_worker(JsWorkerOptions::default())?;
     let ctx = wrk.create_context()?;
 
     ctx.exec_blocking(|env| {

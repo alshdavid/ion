@@ -65,7 +65,7 @@ async fn main_async(command: TestCommand) -> anyhow::Result<()> {
             let rx = rx.clone();
             async move {
                 while let Ok((file, message, test_id)) = rx.recv() {
-                    let worker = runtime.spawn_worker()?;
+                    let worker = runtime.spawn_worker(JsWorkerOptions::default())?;
                     let ctx = worker.create_context()?;
 
                     println!("- {}", message);
@@ -89,7 +89,7 @@ async fn main_async(command: TestCommand) -> anyhow::Result<()> {
     }
 
     for file in entries {
-        let worker = runtime.spawn_worker()?;
+        let worker = runtime.spawn_worker(JsWorkerOptions::default())?;
         let ctx = worker.create_context()?;
 
         ctx.import(file.try_to_string()?)?;

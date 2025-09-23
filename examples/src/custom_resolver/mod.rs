@@ -12,7 +12,7 @@ pub fn main() -> anyhow::Result<()> {
         ..Default::default()
     })?;
 
-    let worker = runtime.spawn_worker()?;
+    let worker = runtime.spawn_worker(JsWorkerOptions::default())?;
     let ctx = worker.create_context()?;
 
     let entry_point = PathBuf::from(CARGO_MANIFEST_DIR)

@@ -14,7 +14,7 @@ pub fn main() -> anyhow::Result<()> {
 
     for i in 0..50 {
         {
-            let worker = runtime.spawn_worker()?;
+            let worker = runtime.spawn_worker(JsWorkerOptions::default())?;
 
             {
                 let ctx0 = worker.create_context()?;

@@ -14,7 +14,7 @@ pub fn main() -> anyhow::Result<()> {
 
     for i in 2..50 {
         {
-            let worker = runtime.spawn_worker()?;
+            let worker = runtime.spawn_worker(JsWorkerOptions::default())?;
             worker.run_garbage_collection_for_testing()?;
             drop(worker);
         };

@@ -12,7 +12,7 @@ pub fn main() -> anyhow::Result<()> {
     let runtime = JsRuntime::initialize_once(JsRuntimeOptions::default())?;
     println!("[1] {:?}", memu);
 
-    let worker = runtime.spawn_worker()?;
+    let worker = runtime.spawn_worker(JsWorkerOptions::default())?;
 
     for i in 2..50 {
         let ctx = worker.create_context()?;

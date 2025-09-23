@@ -25,6 +25,9 @@ pub(crate) enum PlatformEvent {
         transformers: Vec<JsTransformer>,
     },
     SpawnWorker {
+        extensions: Vec<JsExtension>,
+        resolvers: Vec<JsResolver>,
+        transformers: Vec<JsTransformer>,
         #[allow(clippy::type_complexity)]
         resolve: Sender<(
             Sender<JsWorkerEvent>,
@@ -89,12 +92,32 @@ pub(crate) static PLATFORM: LazyLock<Sender<PlatformEvent>> = LazyLock::new(|| {
                         transformers.insert(transformer.kind.clone(), Arc::new(transformer));
                     }
                 }
-                PlatformEvent::SpawnWorker { resolve } => {
+                PlatformEvent::SpawnWorker {
+                    resolve,
+                    extensions: init_extensions,
+                    resolvers: init_resolvers,
+                    transformers: init_transformers,
+                } => {
+                    let mut worker_extensions = extensions.clone();
+                    for extension in init_extensions {
+                        worker_extensions.push(Arc::new(extension))
+                    }
+
+                    let mut worker_resolvers = resolvers.clone();
+                    for resolver in init_resolvers {
+                        worker_resolvers.push(resolver)
+                    }
+
+                    let mut worker_transformers = transformers.clone();
+                    for transformer in init_transformers {
+                        worker_transformers.insert(transformer.kind.clone(), Arc::new(transformer));
+                    }
+
                     let (tx, handle) = start_js_worker_thread(
                         background_task_manager.clone(),
-                        extensions.clone(),
-                        resolvers.clone(),
-                        transformers.clone(),
+                        worker_extensions,
+                        worker_resolvers,
+                        worker_transformers,
                     );
 
                     if resolve.try_send((tx, handle)).is_err() {

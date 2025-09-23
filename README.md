@@ -39,7 +39,7 @@ pub fn main() -> anyhow::Result<()> {
     let runtime = JsRuntime::initialize_once()?;
 
     // Create an isolate running on a dedicated thread
-    let worker = runtime.spawn_worker()?;
+    let worker = runtime.spawn_worker(JsWorkerOptions::default())?;
 
     // Open a JavaScript context (a fresh globalThis) to execute JavaScript.
     // You can open multiple contexts, sharing the same thread
@@ -71,7 +71,7 @@ use ion::*;
 pub fn main() -> anyhow::Result<()> {
     let runtime = JsRuntime::initialize_once()?;
 
-    let worker = runtime.spawn_worker()?;
+    let worker = runtime.spawn_worker(JsWorkerOptions::default())?;
     let ctx = worker.create_context()?;
 
     // Create a function on the global scope
@@ -107,7 +107,7 @@ pub fn main() -> anyhow::Result<()> {
 
     runtime.register_extension(ion::extension::console())?;
 
-    let worker = runtime.spawn_worker()?;
+    let worker = runtime.spawn_worker(JsWorkerOptions::default())?;
     let ctx = worker.create_context()?;
 
     // Create an "add" function that does the operation in Rust

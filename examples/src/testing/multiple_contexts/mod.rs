@@ -84,7 +84,7 @@ use ion::*;
 pub fn main() -> anyhow::Result<()> {
     let runtime = JsRuntime::initialize_once(JsRuntimeOptions::default())?;
 
-    let worker = runtime.spawn_worker()?;
+    let worker = runtime.spawn_worker(JsWorkerOptions::default())?;
 
     println!("[ctx0] Started");
     let ctx0 = worker.create_context()?;

@@ -27,7 +27,7 @@ pub fn main() -> anyhow::Result<()> {
         ..Default::default()
     })?;
 
-    let worker = runtime.spawn_worker()?;
+    let worker = runtime.spawn_worker(JsWorkerOptions::default())?;
     let ctx = worker.create_context()?;
 
     ctx.exec_blocking(move |env| env.import(entry_point.try_to_string()?))?;

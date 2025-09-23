@@ -36,7 +36,7 @@ pub fn main() -> anyhow::Result<()> {
         ..Default::default()
     })?;
 
-    let worker = runtime.spawn_worker()?;
+    let worker = runtime.spawn_worker(JsWorkerOptions::default())?;
     let ctx = worker.create_context()?;
 
     ctx.import(file_path.try_to_string()?)?;

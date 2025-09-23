@@ -26,7 +26,7 @@ pub fn main(command: EvalCommand) -> anyhow::Result<()> {
         ],
     })?;
 
-    let worker = runtime.spawn_worker()?;
+    let worker = runtime.spawn_worker(JsWorkerOptions::default())?;
     let ctx = worker.create_context()?;
 
     ctx.exec_blocking(|env| {

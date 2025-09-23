@@ -10,6 +10,7 @@ use crate::JsExtension;
 use crate::JsResolver;
 use crate::JsTransformer;
 use crate::JsWorker;
+use crate::JsWorkerOptions;
 use crate::platform::platform::HAS_INIT;
 use crate::platform::platform::PLATFORM;
 
@@ -95,12 +96,20 @@ impl JsRuntime {
     }
 
     /// Spawns a dedicated worker thread for isolates
-    pub fn spawn_worker(&self) -> crate::Result<Arc<JsWorker>> {
+    pub fn spawn_worker(
+        &self,
+        options: JsWorkerOptions,
+    ) -> crate::Result<Arc<JsWorker>> {
         let (tx, rx) = bounded(1);
 
         if self
             .tx
-            .send(PlatformEvent::SpawnWorker { resolve: tx })
+            .send(PlatformEvent::SpawnWorker {
+                extensions: options.extensions,
+                transformers: options.transformers,
+                resolvers: options.resolvers,
+                resolve: tx,
+            })
             .is_err()
         {
             return Err(Error::WorkerInitializeError);

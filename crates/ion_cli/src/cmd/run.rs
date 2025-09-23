@@ -40,7 +40,7 @@ pub fn main(command: RunCommand) -> anyhow::Result<()> {
         ],
     })?;
 
-    let worker = runtime.spawn_worker()?;
+    let worker = runtime.spawn_worker(JsWorkerOptions::default())?;
     let ctx = worker.create_context()?;
 
     ctx.import(entry.try_to_string()?)?;
