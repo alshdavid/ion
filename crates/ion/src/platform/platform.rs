@@ -19,6 +19,7 @@ use crate::platform::worker::start_js_worker_thread;
 
 pub(crate) enum PlatformEvent {
     Init {
+        skip_init: bool,
         args: Vec<String>,
         extensions: Vec<JsExtension>,
         resolvers: Vec<JsResolver>,
@@ -56,27 +57,28 @@ pub(crate) static PLATFORM: LazyLock<Sender<PlatformEvent>> = LazyLock::new(|| {
         while let Ok(event) = rx.recv() {
             match event {
                 PlatformEvent::Init {
+                    skip_init,
                     args,
                     extensions: init_extensions,
                     resolvers: init_resolvers,
                     transformers: init_transformers,
                 } => {
-                    let platform = v8::new_default_platform(0, false).make_shared();
+                    if !skip_init {
+                        let platform = v8::new_default_platform(0, false).make_shared();
 
-                    if !args.is_empty() {
-                        // Debug args
-                        // "--no_freeze_flags_after_init --expose_gc --harmony-shadow-realm --allow_natives_syntax --turbo_fast_api_calls --js-source-phase-imports",
-                        let args = args
-                            .iter()
-                            .map(|v| v.to_string())
-                            .collect::<Vec<String>>()
-                            .join(" ");
+                        if !args.is_empty() {
+                            let args = args
+                                .iter()
+                                .map(|v| v.to_string())
+                                .collect::<Vec<String>>()
+                                .join(" ");
 
-                        v8::V8::set_flags_from_string(&args);
+                            v8::V8::set_flags_from_string(&args);
+                        }
+
+                        v8::V8::initialize_platform(platform);
+                        v8::V8::initialize();
                     }
-
-                    v8::V8::initialize_platform(platform);
-                    v8::V8::initialize();
 
                     HAS_INIT.store(true, Ordering::Release);
 
