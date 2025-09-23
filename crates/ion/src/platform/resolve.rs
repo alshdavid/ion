@@ -1,9 +1,9 @@
-use crate::DynResolver;
+use crate::JsResolver;
 use crate::ResolverContext;
 use crate::ResolverResult;
 
 pub async fn run_resolvers(
-    resolvers: &Vec<DynResolver>,
+    resolvers: &Vec<JsResolver>,
     ctx: ResolverContext,
 ) -> crate::Result<Option<ResolverResult>> {
     for resolver in resolvers {
@@ -22,5 +22,5 @@ pub async fn run_resolvers(
     }
 
     // Always fall back to resolving relative paths
-    crate::resolvers::relative(ctx).await
+    crate::resolvers::relative()(ctx).await
 }

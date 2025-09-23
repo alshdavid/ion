@@ -1,12 +1,21 @@
 use ion::*;
 
 pub fn main() -> anyhow::Result<()> {
-    let runtime = JsRuntime::initialize_once()?;
+    let runtime = JsRuntime::initialize_once(JsRuntimeOptions {
+        extensions: vec![
+            ion::extensions::console(),
+            ion::extensions::set_interval(),
+            ion::extensions::set_timeout(),
+        ],
+        transformers: vec![
+            ion::transformers::json(),
+            ion::transformers::ts(),
+            ion::transformers::tsx(),
+        ],
+        ..Default::default()
+    })?;
 
-    runtime.register_extension(ion::extensions::console())?;
-    runtime.register_extension(ion::extensions::set_timeout())?;
-
-    let worker = runtime.spawn_worker()?;
+    let worker = runtime.spawn_worker(JsWorkerOptions::default())?;
     let ctx = worker.create_context()?;
 
     // Execute some JavaScript in the context

@@ -7,10 +7,24 @@ use flume::bounded;
 
 use crate::Error;
 use crate::JsExtension;
+use crate::JsResolver;
+use crate::JsTransformer;
 use crate::platform::worker::JsWorkerEvent;
 use crate::utils::channel::oneshot;
 
 use super::JsContext;
+
+#[derive(Default)]
+pub struct JsWorkerOptions {
+    /// Hook that runs before code is imported. This can be used to
+    /// customize the behavior of "import" statements
+    pub resolvers: Vec<JsResolver>,
+    /// Hook that runs before code is loaded. This can be used to
+    /// convert TypeScript into JavaScript or JSON into JavaScript
+    pub transformers: Vec<JsTransformer>,
+    /// Extensions that will be available to all [`crate::JsWorker`] and [`crate::JsContext`] instances
+    pub extensions: Vec<JsExtension>,
+}
 
 /// This is a handle to a v8::Isolate running on a dedicated thread.
 /// A worker thread can spawn multiple v8::Contexts within that thread
@@ -46,19 +60,6 @@ impl JsWorker {
         };
 
         Ok(Arc::new(JsContext { id, tx }))
-    }
-
-    /// Register a native extension, available in all contexts
-    pub fn register_extension(
-        &self,
-        extension: JsExtension,
-    ) -> crate::Result<()> {
-        let (tx, rx) = oneshot();
-        self.tx.try_send(JsWorkerEvent::RegisterExtension {
-            extension,
-            resolve: tx,
-        })?;
-        rx.recv()?
     }
 
     pub fn run_garbage_collection_for_testing(&self) -> crate::Result<()> {

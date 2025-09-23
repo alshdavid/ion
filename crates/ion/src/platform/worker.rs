@@ -8,9 +8,9 @@ use flume::Receiver;
 use flume::Sender;
 use flume::unbounded;
 
-use crate::DynResolver;
 use crate::Env;
 use crate::JsExtension;
+use crate::JsResolver;
 use crate::JsTransformer;
 use crate::fs::FileSystem;
 use crate::platform::background_worker::BackgroundTaskManager;
@@ -49,10 +49,6 @@ pub(crate) enum JsWorkerEvent {
     RunGarbageCollectionForTesting {
         resolve: Sender<()>,
     },
-    RegisterExtension {
-        extension: JsExtension,
-        resolve: Sender<crate::Result<()>>,
-    },
 }
 
 // Create a dedicated thread to host the isolate
@@ -60,7 +56,7 @@ pub(crate) enum JsWorkerEvent {
 pub(crate) fn start_js_worker_thread(
     background_task_manager: Arc<BackgroundTaskManager>,
     extensions: Vec<Arc<JsExtension>>,
-    resolvers: Vec<DynResolver>,
+    resolvers: Vec<JsResolver>,
     transformers: HashMap<String, Arc<JsTransformer>>,
 ) -> (
     Sender<JsWorkerEvent>,
@@ -90,8 +86,8 @@ fn worker_thread(
     tx: Sender<JsWorkerEvent>,
     rx: Receiver<JsWorkerEvent>,
     background_task_manager: Arc<BackgroundTaskManager>,
-    mut extensions: Vec<Arc<JsExtension>>,
-    resolvers: Vec<DynResolver>,
+    extensions: Vec<Arc<JsExtension>>,
+    resolvers: Vec<JsResolver>,
     transformers: HashMap<String, Arc<JsTransformer>>,
 ) -> crate::Result<()> {
     let fs = FileSystem::Physical;
@@ -227,14 +223,6 @@ fn worker_thread(
                 isolate.request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
                 resolve.try_send(())?;
             }
-            JsWorkerEvent::RegisterExtension { extension, resolve } => {
-                let extension = Arc::new(extension);
-                for (_, realm) in &realms {
-                    Extension::register_extension(realm, &extension, &transformers)?;
-                }
-                extensions.push(extension);
-                resolve.try_send(Ok(()))?;
-            }
         }
     }
 
@@ -257,10 +245,6 @@ impl std::fmt::Debug for JsWorkerEvent {
             Self::RunGarbageCollectionForTesting { resolve } => {
                 write!(f, "RunGarbageCollectionForTesting")
             }
-            Self::RegisterExtension {
-                extension,
-                resolve: _,
-            } => write!(f, "RegisterExtension({:?})", extension),
         }
     }
 }

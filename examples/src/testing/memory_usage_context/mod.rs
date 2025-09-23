@@ -9,12 +9,12 @@ pub fn main() -> anyhow::Result<()> {
     let memu = MemoryUsageCounter::default();
     println!("[0] {:?}", memu);
 
-    let runtime = JsRuntime::initialize_debug()?;
+    let runtime = JsRuntime::initialize_once(JsRuntimeOptions::default())?;
     println!("[1] {:?}", memu);
 
     for i in 0..50 {
         {
-            let worker = runtime.spawn_worker()?;
+            let worker = runtime.spawn_worker(JsWorkerOptions::default())?;
 
             {
                 let ctx0 = worker.create_context()?;

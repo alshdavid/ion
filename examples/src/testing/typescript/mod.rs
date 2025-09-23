@@ -13,12 +13,21 @@ pub fn main() -> anyhow::Result<()> {
         .join("js")
         .join("main.ts");
 
-    let runtime = JsRuntime::initialize_once()?;
+    let runtime = JsRuntime::initialize_once(JsRuntimeOptions {
+        extensions: vec![
+            ion::extensions::console(),
+            ion::extensions::set_interval(),
+            ion::extensions::set_timeout(),
+        ],
+        transformers: vec![
+            ion::transformers::json(),
+            ion::transformers::ts(),
+            ion::transformers::tsx(),
+        ],
+        ..Default::default()
+    })?;
 
-    runtime.register_extension(ion::extensions::console())?;
-    runtime.register_transformer(ion::transformers::ts())?;
-
-    let worker = runtime.spawn_worker()?;
+    let worker = runtime.spawn_worker(JsWorkerOptions::default())?;
     let ctx = worker.create_context()?;
 
     ctx.exec_blocking(move |env| env.import(entry_point.try_to_string()?))?;

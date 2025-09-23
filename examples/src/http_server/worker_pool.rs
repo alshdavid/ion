@@ -31,7 +31,7 @@ impl WorkerPool {
         for i in 0..worker_count {
             println!("[{}] Worker Started ({} Contexts)", i, contexts_per_worker);
 
-            let worker = runtime.spawn_worker()?;
+            let worker = runtime.spawn_worker(JsWorkerOptions::default())?;
 
             for _ in 0..contexts_per_worker {
                 let rx = rx.clone();

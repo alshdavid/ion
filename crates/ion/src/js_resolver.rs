@@ -18,6 +18,7 @@ pub struct ResolverResult {
     pub kind: String,
 }
 
-pub(crate) type DynResolver = Arc<dyn Send + Sync + Fn(ResolverContext) -> DynResolverFut>;
-pub(crate) type DynResolverFut =
+pub type JsResolver = Arc<dyn Send + Sync + Fn(ResolverContext) -> JsResolverFut>;
+
+pub type JsResolverFut =
     Pin<Box<dyn Send + Sync + Future<Output = crate::Result<Option<ResolverResult>>>>>;

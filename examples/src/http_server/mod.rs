@@ -15,13 +15,14 @@ use self::http1::ResponseBuilderExt;
 use self::worker_pool::WorkerPool;
 
 pub fn main() -> anyhow::Result<()> {
-    // Start the runtime from the main thread
-    let runtime = JsRuntime::initialize_debug()?;
-
-    // Register extensions
-    runtime.register_extension(ion::extensions::console())?;
-    runtime.register_extension(ion::extensions::set_timeout())?;
-    runtime.register_extension(ion::extensions::set_interval())?;
+    let runtime = JsRuntime::initialize_once(JsRuntimeOptions {
+        extensions: vec![
+            ion::extensions::console(),
+            ion::extensions::set_interval(),
+            ion::extensions::set_timeout(),
+        ],
+        ..Default::default()
+    })?;
 
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()

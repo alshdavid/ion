@@ -13,7 +13,6 @@ flume.workspace = true
 v8.workspace = true
 tokio = { workspace = true, features = ["full"] }
 normalize-path.workspace = true
-async_fn_traits.workspace = true
 num_cpus.workspace = true
 parking_lot.workspace = true
 rand.workspace = true

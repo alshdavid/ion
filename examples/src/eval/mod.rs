@@ -7,15 +7,16 @@ pub fn main() -> anyhow::Result<()> {
         .cloned()
         .expect("No code provided");
 
-    let runtime = JsRuntime::initialize_once()?;
+    let runtime = JsRuntime::initialize_once(JsRuntimeOptions {
+        extensions: vec![
+            ion::extensions::console(),
+            ion::extensions::set_interval(),
+            ion::extensions::set_timeout(),
+        ],
+        ..Default::default()
+    })?;
 
-    runtime.register_resolver(ion::resolvers::relative)?;
-
-    runtime.register_extension(ion::extensions::console())?;
-    runtime.register_extension(ion::extensions::set_interval())?;
-    runtime.register_extension(ion::extensions::set_timeout())?;
-
-    let worker = runtime.spawn_worker()?;
+    let worker = runtime.spawn_worker(JsWorkerOptions::default())?;
     let ctx = worker.create_context()?;
 
     ctx.eval(code)?;

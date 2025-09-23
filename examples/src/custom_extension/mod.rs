@@ -2,26 +2,12 @@ use ion::*;
 
 pub fn main() -> anyhow::Result<()> {
     // Start the runtime
-    let runtime = JsRuntime::initialize_once()?;
-
-    // Register extension with glue code
-    runtime.register_extension(JsExtension::NativeModuleWithBinding {
-        module_name: "ion:foo".to_string(),
-        binding: r#"
-            export function foo() {
-                return import.meta.extension.foo
-            }
-        "#
-        .to_string(),
-        extension: Box::new(|env, exports| {
-            let key = env.create_string("foo")?;
-            let value = env.create_string("bar")?;
-            exports.set_property(key, value)?;
-            Ok(())
-        }),
+    let runtime = JsRuntime::initialize_once(JsRuntimeOptions {
+        extensions: vec![custom_extension()],
+        ..Default::default()
     })?;
 
-    let worker = runtime.spawn_worker()?;
+    let worker = runtime.spawn_worker(JsWorkerOptions::default())?;
     let ctx = worker.create_context()?;
 
     ctx.exec_blocking(|env| {
@@ -39,4 +25,22 @@ pub fn main() -> anyhow::Result<()> {
     })?;
 
     Ok(())
+}
+
+fn custom_extension() -> JsExtension {
+    JsExtension::NativeModuleWithBinding {
+        module_name: "ion:foo".to_string(),
+        binding: r#"
+            export function foo() {
+                return import.meta.extension.foo
+            }
+        "#
+        .to_string(),
+        extension: Box::new(|env, exports| {
+            let key = env.create_string("foo")?;
+            let value = env.create_string("bar")?;
+            exports.set_property(key, value)?;
+            Ok(())
+        }),
+    }
 }
