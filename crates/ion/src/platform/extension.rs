@@ -16,149 +16,155 @@ use crate::utils::hash_sha256;
 pub struct Extension {}
 
 impl Extension {
+    pub fn register_extension(
+        realm: &JsRealm,
+        extension: &JsExtension,
+        transformers: &HashMap<String, Arc<JsTransformer>>,
+    ) -> crate::Result<()> {
+        match extension {
+            JsExtension::NativeModuleWithBinding {
+                module_name,
+                binding,
+                extension,
+            } => {
+                let env = realm.env();
+                let module_map = realm.module_map();
+
+                // Run extension hook
+                let mut exports = JsObject::new(env)?;
+                extension(env, &mut exports)?;
+
+                // Transform extensions written in TypeScript
+                let source = (*transformers.get("ts").unwrap().transformer)(TransformerContext {
+                    content: binding.as_bytes().to_vec(),
+                    path: PathBuf::from(module_name),
+                    kind: "ts".to_string(),
+                })?;
+
+                // Construct module for binding
+                let module = Module::new(realm, module_name, source.code)?;
+                let v8_module = module.v8_module();
+                module_map.insert(module);
+
+                // Initialize binding module
+                let scope = &mut env.scope();
+
+                // TEMP, use data or statics or something
+                {
+                    let global_this = env.global_this()?;
+                    let global_this = global_this.value().cast::<v8::Object>();
+                    let key = v8::Integer::new(scope, v8_module.get_identity_hash().into());
+                    let value = exports.value();
+                    global_this.set(scope, key.into(), *value);
+                };
+
+                // Initialize extension module
+                scope.set_host_initialize_import_meta_object_callback(init_meta_callback);
+
+                v8_module
+                    .instantiate_module(scope, Module::v8_initialize_callback)
+                    .unwrap();
+
+                let promise = v8_module.evaluate(scope).unwrap().cast::<v8::Promise>();
+                scope.perform_microtask_checkpoint();
+                promise.result(scope);
+
+                let module = module_map.get_module(module_name).unwrap();
+                module.update_status(ModuleStatus::Ready);
+            }
+            JsExtension::NativeModule {
+                module_name: _,
+                extension: _,
+            } => {
+                // CreateSyntheticModule
+            }
+            JsExtension::NativeGlobal { extension } => {
+                let env = realm.env();
+                let mut global_this = env.global_this()?;
+                extension(env, &mut global_this)?;
+            }
+            JsExtension::GlobalBinding { binding } => {
+                let env = realm.env();
+                let module_map = realm.module_map();
+
+                let source_hash = hash_sha256(binding.as_bytes());
+
+                // Transform extensions written in TypeScript
+                let source = (*transformers.get("ts").unwrap().transformer)(TransformerContext {
+                    content: binding.as_bytes().to_vec(),
+                    path: PathBuf::from(&source_hash),
+                    kind: "ts".to_string(),
+                })?;
+
+                // Construct module for binding
+                let module = Module::new(realm, &source_hash, source.code)?;
+                let v8_module = module.v8_module();
+                module_map.insert(module);
+
+                // Initialize binding module
+                let scope = &mut env.scope();
+
+                // Initialize extension module
+                scope.set_host_initialize_import_meta_object_callback(init_meta_callback);
+
+                v8_module
+                    .instantiate_module(scope, Module::v8_initialize_callback)
+                    .unwrap();
+
+                let promise = v8_module.evaluate(scope).unwrap().cast::<v8::Promise>();
+                scope.perform_microtask_checkpoint();
+                promise.result(scope);
+
+                let module = module_map.get_module(source_hash).unwrap();
+                module.update_status(ModuleStatus::Ready);
+            }
+            JsExtension::BindingModule {
+                module_name,
+                binding,
+            } => {
+                let env = realm.env();
+                let module_map = realm.module_map();
+
+                // Transform extensions written in TypeScript
+                let source = (*transformers.get("ts").unwrap().transformer)(TransformerContext {
+                    content: binding.as_bytes().to_vec(),
+                    path: PathBuf::from(module_name),
+                    kind: "ts".to_string(),
+                })?;
+
+                // Construct module for binding
+                let module = Module::new(realm, module_name, source.code)?;
+                let v8_module = module.v8_module();
+                module_map.insert(module);
+
+                // Initialize binding module
+                let scope = &mut env.scope();
+
+                // Initialize extension module
+                scope.set_host_initialize_import_meta_object_callback(init_meta_callback);
+
+                v8_module
+                    .instantiate_module(scope, Module::v8_initialize_callback)
+                    .unwrap();
+
+                let promise = v8_module.evaluate(scope).unwrap().cast::<v8::Promise>();
+                scope.perform_microtask_checkpoint();
+                promise.result(scope);
+
+                let module = module_map.get_module(module_name).unwrap();
+                module.update_status(ModuleStatus::Ready);
+            }
+        }
+        Ok(())
+    }
+
     pub fn register_extensions(
         realm: &JsRealm,
         extensions: &Vec<Arc<JsExtension>>,
         transformers: &HashMap<String, Arc<JsTransformer>>,
     ) -> crate::Result<()> {
         for extension in extensions {
-            match extension.as_ref() {
-                JsExtension::NativeModuleWithBinding {
-                    module_name,
-                    binding,
-                    extension,
-                } => {
-                    let env = realm.env();
-                    let module_map = realm.module_map();
-
-                    // Run extension hook
-                    let mut exports = JsObject::new(env)?;
-                    extension(env, &mut exports)?;
-
-                    // Transform extensions written in TypeScript
-                    let source =
-                        (*transformers.get("ts").unwrap().transformer)(TransformerContext {
-                            content: binding.as_bytes().to_vec(),
-                            path: PathBuf::from(module_name),
-                            kind: "ts".to_string(),
-                        })?;
-
-                    // Construct module for binding
-                    let module = Module::new(realm, module_name, source.code)?;
-                    let v8_module = module.v8_module();
-                    module_map.insert(module);
-
-                    // Initialize binding module
-                    let scope = &mut env.scope();
-
-                    // TEMP, use data or statics or something
-                    {
-                        let global_this = env.global_this()?;
-                        let global_this = global_this.value().cast::<v8::Object>();
-                        let key = v8::Integer::new(scope, v8_module.get_identity_hash().into());
-                        let value = exports.value();
-                        global_this.set(scope, key.into(), *value);
-                    };
-
-                    // Initialize extension module
-                    scope.set_host_initialize_import_meta_object_callback(init_meta_callback);
-
-                    v8_module
-                        .instantiate_module(scope, Module::v8_initialize_callback)
-                        .unwrap();
-
-                    let promise = v8_module.evaluate(scope).unwrap().cast::<v8::Promise>();
-                    scope.perform_microtask_checkpoint();
-                    promise.result(scope);
-
-                    let module = module_map.get_module(module_name).unwrap();
-                    module.update_status(ModuleStatus::Ready);
-                }
-                JsExtension::NativeModule {
-                    module_name: _,
-                    extension: _,
-                } => {
-                    // CreateSyntheticModule
-                }
-                JsExtension::NativeGlobal { extension } => {
-                    let env = realm.env();
-                    let mut global_this = env.global_this()?;
-                    extension(env, &mut global_this)?;
-                }
-                JsExtension::GlobalBinding { binding } => {
-                    let env = realm.env();
-                    let module_map = realm.module_map();
-
-                    let source_hash = hash_sha256(binding.as_bytes());
-
-                    // Transform extensions written in TypeScript
-                    let source =
-                        (*transformers.get("ts").unwrap().transformer)(TransformerContext {
-                            content: binding.as_bytes().to_vec(),
-                            path: PathBuf::from(&source_hash),
-                            kind: "ts".to_string(),
-                        })?;
-
-                    // Construct module for binding
-                    let module = Module::new(realm, &source_hash, source.code)?;
-                    let v8_module = module.v8_module();
-                    module_map.insert(module);
-
-                    // Initialize binding module
-                    let scope = &mut env.scope();
-
-                    // Initialize extension module
-                    scope.set_host_initialize_import_meta_object_callback(init_meta_callback);
-
-                    v8_module
-                        .instantiate_module(scope, Module::v8_initialize_callback)
-                        .unwrap();
-
-                    let promise = v8_module.evaluate(scope).unwrap().cast::<v8::Promise>();
-                    scope.perform_microtask_checkpoint();
-                    promise.result(scope);
-
-                    let module = module_map.get_module(source_hash).unwrap();
-                    module.update_status(ModuleStatus::Ready);
-                }
-                JsExtension::BindingModule {
-                    module_name,
-                    binding,
-                } => {
-                    let env = realm.env();
-                    let module_map = realm.module_map();
-
-                    // Transform extensions written in TypeScript
-                    let source =
-                        (*transformers.get("ts").unwrap().transformer)(TransformerContext {
-                            content: binding.as_bytes().to_vec(),
-                            path: PathBuf::from(module_name),
-                            kind: "ts".to_string(),
-                        })?;
-
-                    // Construct module for binding
-                    let module = Module::new(realm, module_name, source.code)?;
-                    let v8_module = module.v8_module();
-                    module_map.insert(module);
-
-                    // Initialize binding module
-                    let scope = &mut env.scope();
-
-                    // Initialize extension module
-                    scope.set_host_initialize_import_meta_object_callback(init_meta_callback);
-
-                    v8_module
-                        .instantiate_module(scope, Module::v8_initialize_callback)
-                        .unwrap();
-
-                    let promise = v8_module.evaluate(scope).unwrap().cast::<v8::Promise>();
-                    scope.perform_microtask_checkpoint();
-                    promise.result(scope);
-
-                    let module = module_map.get_module(module_name).unwrap();
-                    module.update_status(ModuleStatus::Ready);
-                }
-            }
+            Self::register_extension(realm, &extension, transformers)?;
         }
 
         Ok(())

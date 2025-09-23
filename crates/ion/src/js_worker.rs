@@ -6,6 +6,7 @@ use flume::Sender;
 use flume::bounded;
 
 use crate::Error;
+use crate::JsExtension;
 use crate::platform::worker::JsWorkerEvent;
 use crate::utils::channel::oneshot;
 
@@ -45,6 +46,19 @@ impl JsWorker {
         };
 
         Ok(Arc::new(JsContext { id, tx }))
+    }
+
+    /// Register a native extension, available in all contexts
+    pub fn register_extension(
+        &self,
+        extension: JsExtension,
+    ) -> crate::Result<()> {
+        let (tx, rx) = oneshot();
+        self.tx.try_send(JsWorkerEvent::RegisterExtension {
+            extension,
+            resolve: tx,
+        })?;
+        rx.recv()?
     }
 
     pub fn run_garbage_collection_for_testing(&self) -> crate::Result<()> {

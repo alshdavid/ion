@@ -49,6 +49,10 @@ pub(crate) enum JsWorkerEvent {
     RunGarbageCollectionForTesting {
         resolve: Sender<()>,
     },
+    RegisterExtension {
+        extension: JsExtension,
+        resolve: Sender<crate::Result<()>>,
+    },
 }
 
 // Create a dedicated thread to host the isolate
@@ -86,7 +90,7 @@ fn worker_thread(
     tx: Sender<JsWorkerEvent>,
     rx: Receiver<JsWorkerEvent>,
     background_task_manager: Arc<BackgroundTaskManager>,
-    extensions: Vec<Arc<JsExtension>>,
+    mut extensions: Vec<Arc<JsExtension>>,
     resolvers: Vec<DynResolver>,
     transformers: HashMap<String, Arc<JsTransformer>>,
 ) -> crate::Result<()> {
@@ -223,6 +227,14 @@ fn worker_thread(
                 isolate.request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
                 resolve.try_send(())?;
             }
+            JsWorkerEvent::RegisterExtension { extension, resolve } => {
+                let extension = Arc::new(extension);
+                for (_, realm) in &realms {
+                    Extension::register_extension(realm, &extension, &transformers)?;
+                }
+                extensions.push(extension);
+                resolve.try_send(Ok(()))?;
+            }
         }
     }
 
@@ -245,6 +257,10 @@ impl std::fmt::Debug for JsWorkerEvent {
             Self::RunGarbageCollectionForTesting { resolve } => {
                 write!(f, "RunGarbageCollectionForTesting")
             }
+            Self::RegisterExtension {
+                extension,
+                resolve: _,
+            } => write!(f, "RegisterExtension({:?})", extension),
         }
     }
 }
