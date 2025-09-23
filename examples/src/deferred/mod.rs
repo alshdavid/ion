@@ -1,14 +1,13 @@
 use std::thread;
 use std::time::Duration;
 
-use ion::JsDeferred;
-use ion::JsObjectValue;
-use ion::JsRuntime;
+use ion::*;
 
 pub fn main() -> anyhow::Result<()> {
-    let rt = JsRuntime::initialize_once()?;
-
-    rt.register_extension(ion::extensions::console())?;
+    let rt = JsRuntime::initialize_once(JsRuntimeOptions {
+        extensions: vec![ion::extensions::console()],
+        ..Default::default()
+    })?;
 
     let wrk = rt.spawn_worker()?;
     let ctx = wrk.create_context()?;

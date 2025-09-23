@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use ion::utils::PathExt;
 use ion::*;
@@ -6,12 +7,9 @@ use ion::*;
 static CARGO_MANIFEST_DIR: &str = env!("CARGO_MANIFEST_DIR");
 
 pub fn main() -> anyhow::Result<()> {
-    let runtime = JsRuntime::initialize_debug()?;
-
-    // Add a custom resolver
-    runtime.register_resolver(async |ctx: ResolverContext| {
-        println!("Custom Resolver Has Run For Path {:?}", ctx.from);
-        Ok(None)
+    let runtime = JsRuntime::initialize_debug(JsRuntimeOptions {
+        resolvers: vec![custom_resolver()],
+        ..Default::default()
     })?;
 
     let worker = runtime.spawn_worker()?;
@@ -26,4 +24,13 @@ pub fn main() -> anyhow::Result<()> {
     ctx.import(&entry_point)?;
 
     Ok(())
+}
+
+pub fn custom_resolver() -> JsResolver {
+    return Arc::new(|ctx: ResolverContext| -> JsResolverFut {
+        Box::pin(async move {
+            println!("Custom Resolver Has Run For Path {:?}", ctx.from);
+            Ok(None)
+        })
+    });
 }

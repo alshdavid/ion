@@ -1,7 +1,7 @@
 use ion::*;
 
 pub fn main() -> anyhow::Result<()> {
-    let runtime = JsRuntime::initialize_debug()?;
+    let runtime = JsRuntime::initialize_once(JsRuntimeOptions::default())?;
 
     let wrk1 = runtime.spawn_worker()?;
     let wrk2 = runtime.spawn_worker()?;

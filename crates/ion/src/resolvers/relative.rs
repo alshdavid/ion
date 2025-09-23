@@ -1,32 +1,39 @@
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use normalize_path::NormalizePath;
 
+use crate::JsResolver;
+use crate::JsResolverFut;
 use crate::ResolverContext;
 use crate::ResolverResult;
 use crate::utils::OsStringExt;
 
-pub async fn relative(ctx: ResolverContext) -> crate::Result<Option<ResolverResult>> {
-    let mut specifier = PathBuf::from(ctx.specifier);
-    if specifier.is_relative() {
-        specifier = ctx.from.parent().unwrap().join(&specifier).normalize();
-    } else {
-        specifier = specifier.normalize()
-    }
+pub fn relative() -> JsResolver {
+    return Arc::new(|ctx: ResolverContext| -> JsResolverFut {
+        Box::pin(async move {
+            let mut specifier = PathBuf::from(ctx.specifier);
+            if specifier.is_relative() {
+                specifier = ctx.from.parent().unwrap().join(&specifier).normalize();
+            } else {
+                specifier = specifier.normalize()
+            }
 
-    if !ctx.fs.try_exists(&specifier).await? {
-        return Ok(None);
-    }
+            if !ctx.fs.try_exists(&specifier).await? {
+                return Ok(None);
+            }
 
-    let Some(kind) = specifier.extension().map(|v| v.try_to_string().unwrap()) else {
-        return Err(crate::Error::ResolveError);
-    };
+            let Some(kind) = specifier.extension().map(|v| v.try_to_string().unwrap()) else {
+                return Err(crate::Error::ResolveError);
+            };
 
-    Ok(Some(ResolverResult {
-        code: ctx.fs.read(&specifier).await?,
-        path: specifier,
-        kind,
-    }))
+            Ok(Some(ResolverResult {
+                code: ctx.fs.read(&specifier).await?,
+                path: specifier,
+                kind,
+            }))
+        })
+    });
 }
 
 // TODO: virtual filesystem

@@ -1,12 +1,19 @@
 use ion::*;
 
 pub fn main() -> anyhow::Result<()> {
-    let runtime = JsRuntime::initialize_debug()?;
-
-    // Register extensions
-    runtime.register_extension(ion::extensions::console())?;
-    runtime.register_extension(ion::extensions::set_timeout())?;
-    runtime.register_extension(ion::extensions::set_interval())?;
+    let runtime = JsRuntime::initialize_once(JsRuntimeOptions {
+        extensions: vec![
+            ion::extensions::console(),
+            ion::extensions::set_interval(),
+            ion::extensions::set_timeout(),
+        ],
+        transformers: vec![
+            ion::transformers::json(),
+            ion::transformers::ts(),
+            ion::transformers::tsx(),
+        ],
+        ..Default::default()
+    })?;
 
     let worker = runtime.spawn_worker()?;
     let ctx = worker.create_context()?;

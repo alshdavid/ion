@@ -10,8 +10,8 @@ use std::thread::JoinHandle;
 use flume::Sender;
 use flume::unbounded;
 
-use crate::DynResolver;
 use crate::JsExtension;
+use crate::JsResolver;
 use crate::JsTransformer;
 use crate::platform::background_worker::BackgroundTaskManager;
 use crate::platform::worker::JsWorkerEvent;
@@ -20,6 +20,9 @@ use crate::platform::worker::start_js_worker_thread;
 pub(crate) enum PlatformEvent {
     Init {
         args: Vec<String>,
+        extensions: Vec<JsExtension>,
+        resolvers: Vec<JsResolver>,
+        transformers: Vec<JsTransformer>,
     },
     SpawnWorker {
         #[allow(clippy::type_complexity)]
@@ -27,15 +30,6 @@ pub(crate) enum PlatformEvent {
             Sender<JsWorkerEvent>,
             Mutex<Option<JoinHandle<crate::Result<()>>>>,
         )>,
-    },
-    RegisterExtension(JsExtension, Sender<crate::Result<()>>),
-    RegisterResolver {
-        resolver: DynResolver,
-        resolve: Sender<crate::Result<()>>,
-    },
-    RegisterTransformer {
-        transformer: JsTransformer,
-        resolve: Sender<crate::Result<()>>,
     },
 }
 
@@ -50,7 +44,7 @@ pub(crate) static PLATFORM: LazyLock<Sender<PlatformEvent>> = LazyLock::new(|| {
         let background_task_manager = Arc::new(BackgroundTaskManager::new().unwrap());
 
         let mut extensions = Vec::<Arc<JsExtension>>::new();
-        let mut resolvers = Vec::<DynResolver>::new();
+        let mut resolvers = Vec::<JsResolver>::new();
         let mut transformers = HashMap::<String, Arc<JsTransformer>>::new();
 
         transformers.insert("ts".to_string(), Arc::new(crate::transformers::ts()));
@@ -58,7 +52,12 @@ pub(crate) static PLATFORM: LazyLock<Sender<PlatformEvent>> = LazyLock::new(|| {
 
         while let Ok(event) = rx.recv() {
             match event {
-                PlatformEvent::Init { args } => {
+                PlatformEvent::Init {
+                    args,
+                    extensions: init_extensions,
+                    resolvers: init_resolvers,
+                    transformers: init_transformers,
+                } => {
                     let platform = v8::new_default_platform(0, false).make_shared();
 
                     if !args.is_empty() {
@@ -77,6 +76,18 @@ pub(crate) static PLATFORM: LazyLock<Sender<PlatformEvent>> = LazyLock::new(|| {
                     v8::V8::initialize();
 
                     HAS_INIT.store(true, Ordering::Release);
+
+                    for extension in init_extensions {
+                        extensions.push(Arc::new(extension))
+                    }
+
+                    for resolver in init_resolvers {
+                        resolvers.push(resolver)
+                    }
+
+                    for transformer in init_transformers {
+                        transformers.insert(transformer.kind.clone(), Arc::new(transformer));
+                    }
                 }
                 PlatformEvent::SpawnWorker { resolve } => {
                     let (tx, handle) = start_js_worker_thread(
@@ -90,21 +101,6 @@ pub(crate) static PLATFORM: LazyLock<Sender<PlatformEvent>> = LazyLock::new(|| {
                         // TODO implement global error handler
                         panic!("Internal error starting worker")
                     };
-                }
-                PlatformEvent::RegisterExtension(extension, tx_reply) => {
-                    extensions.push(Arc::new(extension));
-                    tx_reply.try_send(Ok(())).unwrap();
-                }
-                PlatformEvent::RegisterResolver { resolver, resolve } => {
-                    resolvers.push(resolver);
-                    resolve.try_send(Ok(())).unwrap();
-                }
-                PlatformEvent::RegisterTransformer {
-                    transformer,
-                    resolve,
-                } => {
-                    transformers.insert(transformer.kind.clone(), Arc::new(transformer));
-                    resolve.try_send(Ok(())).unwrap();
                 }
             }
         }

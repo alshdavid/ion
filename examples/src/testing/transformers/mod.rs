@@ -13,10 +13,19 @@ pub fn main() -> anyhow::Result<()> {
         .join("js")
         .join("main.js");
 
-    let runtime = JsRuntime::initialize_once()?;
-
-    runtime.register_extension(ion::extensions::console())?;
-    runtime.register_transformer(ion::transformers::json())?;
+    let runtime = JsRuntime::initialize_once(JsRuntimeOptions {
+        extensions: vec![
+            ion::extensions::console(),
+            ion::extensions::set_interval(),
+            ion::extensions::set_timeout(),
+        ],
+        transformers: vec![
+            ion::transformers::json(),
+            ion::transformers::ts(),
+            ion::transformers::tsx(),
+        ],
+        ..Default::default()
+    })?;
 
     let worker = runtime.spawn_worker()?;
     let ctx = worker.create_context()?;

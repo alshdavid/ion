@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use ion::utils::PathExt;
+use ion::*;
 use normalize_path::NormalizePath;
 
 #[derive(Debug, Parser)]
@@ -21,19 +22,23 @@ pub fn main(command: RunCommand) -> anyhow::Result<()> {
     }
     .normalize();
 
-    let runtime = ion::JsRuntime::initialize_once()?;
-
-    // Resolvers
-    runtime.register_resolver(ion::resolvers::relative)?;
-
-    // Transformers
-    runtime.register_transformer(ion::transformers::json())?;
-    runtime.register_transformer(ion::transformers::ts())?;
-    runtime.register_transformer(ion::transformers::tsx())?;
-
-    // Extensions
-    runtime.register_extension(ion::extensions::console())?;
-    runtime.register_extension(ion::extensions::set_timeout())?;
+    let runtime = JsRuntime::initialize_once(JsRuntimeOptions {
+        v8_args: vec![],
+        resolvers: vec![ion::resolvers::relative()],
+        transformers: vec![
+            ion::transformers::json(),
+            ion::transformers::ts(),
+            ion::transformers::tsx(),
+        ],
+        extensions: vec![
+            ion::extensions::event_target(),
+            ion::extensions::console(),
+            ion::extensions::set_timeout(),
+            ion::extensions::set_interval(),
+            ion::extensions::test(),
+            ion::extensions::global_this(),
+        ],
+    })?;
 
     let worker = runtime.spawn_worker()?;
     let ctx = worker.create_context()?;

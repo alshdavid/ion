@@ -8,9 +8,9 @@ use flume::Receiver;
 use flume::Sender;
 use flume::unbounded;
 
-use crate::DynResolver;
 use crate::Env;
 use crate::JsExtension;
+use crate::JsResolver;
 use crate::JsTransformer;
 use crate::fs::FileSystem;
 use crate::platform::background_worker::BackgroundTaskManager;
@@ -60,7 +60,7 @@ pub(crate) enum JsWorkerEvent {
 pub(crate) fn start_js_worker_thread(
     background_task_manager: Arc<BackgroundTaskManager>,
     extensions: Vec<Arc<JsExtension>>,
-    resolvers: Vec<DynResolver>,
+    resolvers: Vec<JsResolver>,
     transformers: HashMap<String, Arc<JsTransformer>>,
 ) -> (
     Sender<JsWorkerEvent>,
@@ -91,7 +91,7 @@ fn worker_thread(
     rx: Receiver<JsWorkerEvent>,
     background_task_manager: Arc<BackgroundTaskManager>,
     mut extensions: Vec<Arc<JsExtension>>,
-    resolvers: Vec<DynResolver>,
+    resolvers: Vec<JsResolver>,
     transformers: HashMap<String, Arc<JsTransformer>>,
 ) -> crate::Result<()> {
     let fs = FileSystem::Physical;

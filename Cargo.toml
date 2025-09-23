@@ -25,7 +25,6 @@ rpath = false
 [workspace.dependencies]
 anyhow = "1.0.99"
 async-io = "2.5.0"
-async_fn_traits = "0.1.1"
 base64 = "0.22.1"
 clap = { version = "4.5.47", features = ["derive"] }
 flume = "0.11.1"

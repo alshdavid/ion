@@ -38,23 +38,23 @@ async fn main_async(command: TestCommand) -> anyhow::Result<()> {
         }
     }
 
-    let runtime = ion::JsRuntime::initialize_once()?;
-
-    // Resolvers
-    runtime.register_resolver(ion::resolvers::relative)?;
-
-    // Transformers
-    runtime.register_transformer(ion::transformers::json())?;
-    runtime.register_transformer(ion::transformers::ts())?;
-    runtime.register_transformer(ion::transformers::tsx())?;
-
-    // Extensions
-    runtime.register_extension(ion::extensions::event_target())?;
-    runtime.register_extension(ion::extensions::console())?;
-    runtime.register_extension(ion::extensions::set_timeout())?;
-    runtime.register_extension(ion::extensions::set_interval())?;
-    runtime.register_extension(ion::extensions::test())?;
-    runtime.register_extension(ion::extensions::global_this())?;
+    let runtime = ion::JsRuntime::initialize_once(JsRuntimeOptions {
+        v8_args: vec![],
+        resolvers: vec![ion::resolvers::relative()],
+        transformers: vec![
+            ion::transformers::json(),
+            ion::transformers::ts(),
+            ion::transformers::tsx(),
+        ],
+        extensions: vec![
+            ion::extensions::event_target(),
+            ion::extensions::console(),
+            ion::extensions::set_timeout(),
+            ion::extensions::set_interval(),
+            ion::extensions::test(),
+            ion::extensions::global_this(),
+        ],
+    })?;
 
     let (tx, rx) = unbounded::<(PathBuf, String, u32)>();
     let mut set = JoinSet::<anyhow::Result<()>>::new();

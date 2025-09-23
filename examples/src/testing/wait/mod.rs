@@ -82,7 +82,7 @@
 use ion::*;
 
 pub fn main() -> anyhow::Result<()> {
-    let runtime = JsRuntime::initialize_debug()?;
+    let runtime = JsRuntime::initialize_once(JsRuntimeOptions::default())?;
 
     let worker = runtime.spawn_worker()?;
 

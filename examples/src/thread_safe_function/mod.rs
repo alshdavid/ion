@@ -1,13 +1,23 @@
 use std::thread;
 use std::time::Duration;
 
-use ion::JsFunction;
-use ion::JsNumber;
-use ion::JsRuntime;
-use ion::ThreadSafeFunction;
+use ion::*;
 
 pub fn main() -> anyhow::Result<()> {
-    let rt = JsRuntime::initialize_once()?;
+    let rt = JsRuntime::initialize_once(JsRuntimeOptions {
+        extensions: vec![
+            ion::extensions::console(),
+            ion::extensions::set_interval(),
+            ion::extensions::set_timeout(),
+        ],
+        transformers: vec![
+            ion::transformers::json(),
+            ion::transformers::ts(),
+            ion::transformers::tsx(),
+        ],
+        ..Default::default()
+    })?;
+
     let wrk = rt.spawn_worker()?;
     let ctx = wrk.create_context()?;
 
