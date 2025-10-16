@@ -18,37 +18,44 @@ env:
   profile: release
 
 jobs:
-  vars:
-    name: "📋 Generate Variables"
+  version:
+    name: 🌐 Auto Version Increment
     runs-on: ubuntu-24.04
     outputs:
-      NPM_VER: ${{ steps.tag.outputs.NPM_VER }}
-      GH_TAG: ${{ steps.tag.outputs.GH_TAG }}
+      VERSION: ${{ steps.generate.outputs.VERSION }}
     steps:
-      - run: eval $(curl -sSf sh.davidalsh.com/nodejs.sh | sh)
-      - id: tag
+      - uses: actions/checkout@v4
+      - id: generate
         run: |
-          GH_TAG="$(date -u +"v%Y.%m.%d.%H%M").${GITHUB_SHA::4}"
-          echo GH_TAG:$GH_TAG
-          echo "GH_TAG=$GH_TAG" >> "$GITHUB_OUTPUT"
+          set -e
+          LAST_VERSION=$(curl -sSL https://api.github.com/repos/alshdavid/$PROJECT_NAME/releases/latest | jq -r ".tag_name" | cut -d "." -f 3)
+          if [ "$LAST_VERSION" = "" ]; then
+            LAST_VERSION="0"
+          fi
+          declare -i var="$LAST_VERSION"
+          var=$var+1
+          VERSION="0.0.$var"
+
+          echo $VERSION
+          echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
 
   test:
     name: 🧪 Test
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - run: eval $(curl -sSf sh.davidalsh.com/just.sh | sh)
       - run: eval $(curl -sSf sh.davidalsh.com/rust.sh | sh)
-      - run: just test
+      - run: cargo test
 
   format:
     name: 📝 Format
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - run: eval $(curl -sSf sh.davidalsh.com/just.sh | sh)
       - run: eval $(curl -sSf sh.davidalsh.com/rust.sh | sh)
-      - run: just fmt
+      - run: cargo install cargo-xfmt
+      - run: cargo xfmt --check
+      - run: cargo clippy -- --deny "warnings"
 
   build_linux_amd64:
     name: 🐥 Linux AMD64
@@ -164,7 +171,7 @@ jobs:
     name: "🔄 Publish Github Release"
     runs-on: ubuntu-24.04
     needs:
-      - vars
+      - version
       - test
       - format
       - build_linux_amd64
@@ -178,15 +185,15 @@ jobs:
         with: { path: artifacts }
       - name: Publish` Github Release
         env:
-          GH_TAG: ${{needs.vars.outputs.GH_TAG}}
+          VERSION: ${{needs.version.outputs.VERSION}}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
 
-          echo "Tag: ${GH_TAG}"
+          echo "Tag: ${VERSION}"
 
-          gh release create $GH_TAG  --draft --notes "Automatically built binaries"
-          gh release edit $GH_TAG --title "🚀 Latest"
+          gh release create $VERSION  --draft --notes "Automatically built binaries"
+          gh release edit $VERSION --title "🚀 Latest"
 
           cd artifacts
 
@@ -196,7 +203,7 @@ jobs:
             ls -l
             chmod +x ./*
             tar -czvf ./${name}.tar.gz ./*
-            gh release upload $GH_TAG ${name}.tar.gz
+            gh release upload $VERSION ${name}.tar.gz
           done
 
-          gh release edit $GH_TAG --draft=false
+          gh release edit $VERSION --draft=false

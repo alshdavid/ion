@@ -1,8 +1,7 @@
+use super::__v8_context;
 use super::__v8_context_scope;
 use super::v8_get_context;
 use super::v8_get_context_scope;
-
-use super::__v8_context;
 
 #[allow(non_camel_case_types)]
 pub type __v8_global_this = *mut v8::Global<v8::Object>;

@@ -5,14 +5,13 @@ use std::thread::JoinHandle;
 use flume::Sender;
 use flume::bounded;
 
+use super::JsContext;
 use crate::Error;
 use crate::JsExtension;
 use crate::JsResolver;
 use crate::JsTransformer;
 use crate::platform::worker::JsWorkerEvent;
 use crate::utils::channel::oneshot;
-
-use super::JsContext;
 
 #[derive(Default)]
 pub struct JsWorkerOptions {

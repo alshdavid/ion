@@ -1,6 +1,5 @@
-use crate::platform::sys;
-
 use super::*;
+use crate::platform::sys;
 
 pub trait JsObjectValue: JsValue {
     /// Set the property value to the `Object`

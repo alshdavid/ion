@@ -8,11 +8,10 @@ use ion::utils::channel::channel;
 use ion::*;
 use tokio::io::AsyncWriteExt;
 
-use crate::http_server::handlers::get_handler;
-use crate::http_server::worker_pool::WorkerPoolOptions;
-
 use self::http1::ResponseBuilderExt;
 use self::worker_pool::WorkerPool;
+use crate::http_server::handlers::get_handler;
+use crate::http_server::worker_pool::WorkerPoolOptions;
 
 pub fn main() -> anyhow::Result<()> {
     let runtime = JsRuntime::initialize_once(JsRuntimeOptions {

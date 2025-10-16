@@ -1,0 +1,10 @@
+{
+  "emeraldwalk.runonsave": {
+    "commands": [
+      {
+        "match": ".rs",
+        "cmd": "cargo xfmt --file ${file}"
+      }
+    ]
+  }
+}

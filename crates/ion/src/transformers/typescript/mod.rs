@@ -124,10 +124,11 @@ fn transformer(ctx: TransformerContext) -> crate::Result<TransformerResult> {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use super::*;
     use crate::JsTransformer;
     use crate::TransformerContext;
-    use std::path::PathBuf;
 
     #[test]
     fn ts_with_jsx_returns_clear_error() {

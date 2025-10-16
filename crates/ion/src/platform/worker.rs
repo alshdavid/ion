@@ -8,6 +8,10 @@ use flume::Receiver;
 use flume::Sender;
 use flume::unbounded;
 
+use super::JsRealm;
+use super::active_context::ActiveContext;
+use super::extension::Extension;
+use super::module::Module;
 use crate::Env;
 use crate::JsExtension;
 use crate::JsResolver;
@@ -17,11 +21,6 @@ use crate::platform::background_worker::BackgroundTaskManager;
 use crate::platform::sys;
 use crate::utils::HashMapExt;
 use crate::utils::PathExt;
-
-use super::JsRealm;
-use super::active_context::ActiveContext;
-use super::extension::Extension;
-use super::module::Module;
 
 pub(crate) enum JsWorkerEvent {
     CreateContext {

@@ -5,6 +5,7 @@ use std::sync::atomic::Ordering;
 use flume::Sender;
 use flume::bounded;
 
+use super::platform::platform::PlatformEvent;
 use crate::Error;
 use crate::JsExtension;
 use crate::JsResolver;
@@ -13,8 +14,6 @@ use crate::JsWorker;
 use crate::JsWorkerOptions;
 use crate::platform::platform::HAS_INIT;
 use crate::platform::platform::PLATFORM;
-
-use super::platform::platform::PlatformEvent;
 
 static JS_RUNTIME: OnceLock<crate::Result<Arc<JsRuntime>>> = OnceLock::new();
 
