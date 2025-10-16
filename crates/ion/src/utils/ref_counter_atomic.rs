@@ -3,8 +3,21 @@ use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
 /// Simple single threaded reference counter
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct AtomicRefCounter(Arc<AtomicUsize>);
+
+impl Clone for AtomicRefCounter {
+    fn clone(&self) -> Self {
+        self.inc();
+        Self(self.0.clone())
+    }
+}
+
+impl Drop for AtomicRefCounter {
+    fn drop(&mut self) {
+        self.dec();
+    }
+}
 
 impl Default for AtomicRefCounter {
     fn default() -> Self {

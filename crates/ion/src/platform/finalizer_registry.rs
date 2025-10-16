@@ -51,3 +51,50 @@ impl FinalizerRegistery {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::*;
+
+    #[test]
+    fn should_run_drop() -> anyhow::Result<()> {
+        let worker = testing::JS_RUNTIME.spawn_worker(JsWorkerOptions {
+            resolvers: vec![],
+            transformers: vec![],
+            extensions: vec![],
+        })?;
+
+        let context = worker.create_context()?;
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+
+        context.exec_blocking(move |env| {
+            let value = env.create_int32(42)?;
+
+            env.finalizer_registry.register(value.value(), move || {
+                tx.send(()).ok();
+            });
+
+            env.global_this()?.set_named_property("__global", value)?;
+
+            Ok(())
+        })?;
+
+        assert_eq!(rx.len(), 0, "Unexpect GC Notification");
+
+        context.exec_blocking(|env| {
+            env.global_this()?.delete_named_property("__global")?;
+            Ok(())
+        })?;
+
+        // TODO: It appears that the value will only be dropped if the context is dropped
+        //       Ideally I want it to be dropped when the value is actually GC'd
+        //
+        // worker.run_garbage_collection_for_testing()?;
+        // assert_eq!(rx.len(), 1, "GC notification not sent");
+
+        drop(context);
+        assert_eq!(rx.len(), 1, "GC notification not sent");
+
+        Ok(())
+    }
+}

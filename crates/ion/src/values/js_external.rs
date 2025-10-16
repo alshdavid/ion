@@ -26,7 +26,8 @@ impl<T> JsExternal<T> {
         let ptr = Box::into_raw(Box::new(data)) as *mut c_void;
         let scope = &mut env.scope();
 
-        let ref_count = RefCounter::new(1);
+        // One for Rust, One for JavaScript
+        let ref_count = RefCounter::new(2);
 
         // Store both the data pointer AND the RefCounter in the V8 External
         let external_data = Box::into_raw(Box::new((ptr, ref_count.clone())));
@@ -119,5 +120,69 @@ impl<T> ToJsValue for JsExternal<T> {
         val: Self,
     ) -> crate::Result<Value> {
         Ok(val.value)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::utils::AtomicRefCounter;
+    use crate::*;
+
+    fn assert_refcount(
+        counter: &AtomicRefCounter,
+        expect: usize,
+        msg: &str,
+    ) {
+        let count = counter.count();
+        assert_eq!(
+            count, expect,
+            "Invalid Refcount\nMessage {}\nExpected: {}, Got: {}",
+            msg, expect, count
+        );
+    }
+
+    #[test]
+    fn should_create_extern_value() -> anyhow::Result<()> {
+        let worker = testing::JS_RUNTIME.spawn_worker(JsWorkerOptions {
+            resolvers: vec![],
+            transformers: vec![],
+            extensions: vec![],
+        })?;
+
+        let context = worker.create_context()?;
+        let ref_counter = AtomicRefCounter::new(1);
+        assert_refcount(&ref_counter, 1, "Initial Value");
+
+        context.exec_blocking({
+            let ref_counter = ref_counter.clone();
+            move |env| {
+                assert_refcount(&ref_counter, 2, "After Clone into JavaScript");
+
+                let external = JsExternal::new(&env, ref_counter)?;
+
+                env.global_this()?
+                    .set_named_property("__global", external)?;
+
+                Ok(())
+            }
+        })?;
+
+        assert_refcount(&ref_counter, 2, "After value is stored on globalThis");
+
+        context.exec(|env| {
+            env.global_this()?.delete_named_property("__global")?;
+            Ok(())
+        })?;
+
+        // TODO: It appears that the value will only be dropped if the context is dropped
+        //       Ideally I want it to be dropped when the value is actually GC'd
+        //
+        // worker.run_garbage_collection_for_testing()?;
+        // assert_refcount(&ref_counter, 1, "After JavaScript GC");
+
+        drop(context);
+        assert_refcount(&ref_counter, 1, "After JavaScript GC");
+
+        Ok(())
     }
 }

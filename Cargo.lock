@@ -893,6 +893,7 @@ dependencies = [
 name = "ion"
 version = "0.2.0"
 dependencies = [
+ "anyhow",
  "base64",
  "flume",
  "normalize-path",

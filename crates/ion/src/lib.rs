@@ -12,6 +12,8 @@ mod js_transformer;
 mod js_worker;
 pub mod platform;
 pub mod resolvers;
+#[cfg(test)]
+pub mod testing;
 pub mod transformers;
 pub mod utils;
 pub mod values;
