@@ -179,6 +179,39 @@ pub trait JsObjectValue: JsValue {
         todo!();
     }
 
+    /// This API returns the names of the own properties of object as an array of strings.
+    /// This includes both enumerable and non-enumerable properties, but excludes symbols.
+    /// Similar to Object.getOwnPropertyNames() in JavaScript.
+    /// Returns a JsObject that can be used as an array with get_element/set_element methods.
+    fn get_own_property_names(&self) -> crate::Result<crate::values::JsObject> {
+        let env = self.env();
+        let scope = &mut env.scope();
+
+        let object = self.value().cast::<v8::Object>();
+
+        // Get own property names (enumerable and non-enumerable, excluding symbols)
+        let property_names = object.get_own_property_names(
+            scope,
+            v8::GetPropertyNamesArgs {
+                mode: v8::KeyCollectionMode::OwnOnly,
+                property_filter: v8::PropertyFilter::ALL_PROPERTIES,
+                index_filter: v8::IndexFilter::IncludeIndices,
+                key_conversion: v8::KeyConversionMode::KeepNumbers,
+            },
+        );
+
+        let Some(names_array) = property_names else {
+            // Return empty array if unable to get property names
+            return crate::values::JsObject::new(env);
+        };
+
+        // Convert V8 array to our JsObject
+        Ok(crate::values::JsObject {
+            value: sys::v8_from_value(names_array),
+            env: env.clone(),
+        })
+    }
+
     // /// This API returns the names of the enumerable properties of object as an array of strings.
     // // The properties of object whose key is a symbol will not be included.
     // fn get_property_names(&self) -> crate::Result<Object<'env>> {
@@ -212,13 +245,20 @@ pub trait JsObjectValue: JsValue {
     /// Set the element at the given index
     fn set_element<T>(
         &mut self,
-        _index: u32,
-        _value: T,
+        index: u32,
+        value: T,
     ) -> crate::Result<()>
     where
         T: JsValue,
     {
-        todo!();
+        let env = self.env();
+        let scope = &mut env.scope();
+
+        let object = self.value().cast::<v8::Object>();
+        let index_key = v8::Integer::new(scope, index as i32);
+
+        object.set(scope, index_key.into(), *value.value());
+        Ok(())
     }
 
     /// Check if the `Array` has the element at the given index

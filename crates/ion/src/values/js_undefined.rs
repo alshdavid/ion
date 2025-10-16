@@ -13,6 +13,11 @@ pub struct JsUndefined {
 }
 
 impl JsUndefined {
+    pub fn new(env: &Env) -> crate::Result<Self> {
+        let scope = &mut env.scope();
+        JsUndefined::from_js_value(env, sys::v8_from_value(v8::undefined(scope)))
+    }
+
     /// # SAFETY
     ///
     /// Skips checks for type conversion (TODO)
@@ -65,7 +70,6 @@ impl ToJsValue for JsUndefined {
 
 impl Env {
     pub fn get_undefined(&self) -> crate::Result<JsUndefined> {
-        let scope = &mut self.scope();
-        JsUndefined::from_js_value(self, sys::v8_from_value(v8::undefined(scope)))
+        JsUndefined::new(self)
     }
 }

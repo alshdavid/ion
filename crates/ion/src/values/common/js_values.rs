@@ -29,15 +29,12 @@ pub trait ToJsValue: Sized {
     ) -> crate::Result<Value>;
 }
 
-pub trait ToJsUnknown: Sized + ToJsValue {
+pub trait ToJsUnknown: Sized + JsValue {
     /// this function called to convert JavaScript values into unknown JavaScript values
-    fn into_unknown(
-        env: &Env,
-        val: Self,
-    ) -> crate::Result<JsUnknown> {
-        Ok(JsUnknown {
-            env: env.clone(),
-            value: ToJsValue::to_js_value(env, val)?,
-        })
+    fn into_unknown(self) -> JsUnknown {
+        JsUnknown {
+            env: self.env().clone(),
+            value: *self.value(),
+        }
     }
 }

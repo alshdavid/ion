@@ -1,15 +1,18 @@
+use std::future::Future;
 use std::pin::Pin;
 use std::thread::JoinHandle;
 use std::thread::{self};
 
 use flume::Sender;
 use flume::unbounded;
+use tracing::Instrument;
 
 use crate::utils::channel::oneshot;
 
 pub(crate) enum BackgroundTaskManagerEvent {
     ExecFut {
         fut: Pin<Box<dyn 'static + Send + Sync + Future<Output = crate::Result<()>>>>,
+        span: tracing::Span,
     },
 }
 
@@ -45,8 +48,8 @@ impl BackgroundTaskManager {
                 runtime.block_on(async move {
                     while let Ok(event) = rx.recv_async().await {
                         match event {
-                            BackgroundTaskManagerEvent::ExecFut { fut } => {
-                                tokio::task::spawn(fut);
+                            BackgroundTaskManagerEvent::ExecFut { fut, span } => {
+                                tokio::task::spawn(fut.instrument(span));
                             }
                         }
                     }
@@ -63,17 +66,21 @@ impl BackgroundTaskManager {
         &self,
         fut: impl 'static + Send + Sync + Future<Output = crate::Result<()>>,
     ) -> crate::Result<()> {
-        Ok(self
-            .tx
-            .try_send(BackgroundTaskManagerEvent::ExecFut { fut: Box::pin(fut) })?)
+        let span = tracing::Span::current();
+        Ok(self.tx.try_send(BackgroundTaskManagerEvent::ExecFut {
+            fut: Box::pin(fut),
+            span,
+        })?)
     }
 
     pub fn spawn_then(
         &self,
         fut: impl 'static + Send + Sync + Future<Output = crate::Result<()>>,
     ) -> crate::Result<()> {
-        Ok(self
-            .tx
-            .try_send(BackgroundTaskManagerEvent::ExecFut { fut: Box::pin(fut) })?)
+        let span = tracing::Span::current();
+        Ok(self.tx.try_send(BackgroundTaskManagerEvent::ExecFut {
+            fut: Box::pin(fut),
+            span,
+        })?)
     }
 }

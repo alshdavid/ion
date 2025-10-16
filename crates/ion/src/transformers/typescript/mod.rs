@@ -1,3 +1,6 @@
+use miette::GraphicalReportHandler;
+use miette::GraphicalTheme;
+use miette::NamedSource;
 use oxc::allocator::Allocator;
 use oxc::ast::ast::SourceType;
 use oxc::codegen::Codegen;
@@ -61,28 +64,47 @@ fn transformer(ctx: TransformerContext) -> crate::Result<TransformerResult> {
             }
         }
 
-        let errors: Vec<String> = parse_result
-            .errors
-            .iter()
-            .map(|e| format!("{:?}", e))
-            .collect();
+        let mut error_output = String::new();
+        let reporter = GraphicalReportHandler::new_themed(GraphicalTheme::unicode_nocolor())
+            .with_context_lines(3)
+            .with_cause_chain()
+            .with_width(100);
+        let source_named = NamedSource::new(ctx.path.display().to_string(), source.clone())
+            .with_language("TypeScript");
+        for err in &parse_result.errors {
+            let e2 = err.clone().with_source_code(source_named.clone());
+            reporter.render_report(&mut error_output, e2.as_ref()).ok();
+            error_output.push_str("\n\n");
+        }
         return Err(crate::Error::TransformerError(format!(
-            "Parse errors: {}",
-            errors.join(", ")
+            "Parse errors in {}:\n{}",
+            ctx.path.display(),
+            error_output
         )));
     }
     let mut program = parse_result.program;
 
     let scoping_result = SemanticBuilder::new().build(&program);
     if !scoping_result.errors.is_empty() {
-        let errors: Vec<String> = scoping_result
-            .errors
-            .iter()
-            .map(|e| format!("{:?}", e))
-            .collect();
+        use miette::GraphicalReportHandler;
+        use miette::GraphicalTheme;
+        use miette::NamedSource;
+        let mut error_output = String::new();
+        let reporter = GraphicalReportHandler::new_themed(GraphicalTheme::unicode_nocolor())
+            .with_context_lines(3)
+            .with_cause_chain()
+            .with_width(100);
+        let source_named = NamedSource::new(ctx.path.display().to_string(), source.clone())
+            .with_language("TypeScript");
+        for err in &scoping_result.errors {
+            let e2 = err.clone().with_source_code(source_named.clone());
+            reporter.render_report(&mut error_output, e2.as_ref()).ok();
+            error_output.push_str("\n\n");
+        }
         return Err(crate::Error::TransformerError(format!(
-            "Parse errors: {}",
-            errors.join(", ")
+            "Parse errors in {}:\n{}",
+            ctx.path.display(),
+            error_output
         )));
     }
     let scoping = scoping_result.semantic.into_scoping();
@@ -127,8 +149,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::*;
-    use crate::JsTransformer;
-    use crate::TransformerContext;
+    use crate::*;
 
     #[test]
     fn ts_with_jsx_returns_clear_error() {

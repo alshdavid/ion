@@ -19,11 +19,13 @@ impl JsContext {
         &self,
         callback: impl 'static + Send + FnOnce(&Env) -> crate::Result<()>,
     ) -> crate::Result<()> {
+        let span = tracing::Span::current();
         if self
             .tx
             .try_send(JsWorkerEvent::Exec {
                 id: self.id,
                 callback: Box::new(callback),
+                span,
             })
             .is_err()
         {

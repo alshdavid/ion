@@ -3,6 +3,7 @@ use std::ffi::c_int;
 use crate::Env;
 use crate::JsObject;
 use crate::JsObjectValue;
+use crate::JsUnknown;
 use crate::JsValuesTupleIntoVec;
 use crate::ToJsUnknown;
 use crate::platform::sys;
@@ -52,9 +53,19 @@ impl JsFunction {
                 let info: &JsFunctionCallbackInfo<Return, Callback> = unsafe { &*external_ptr };
 
                 let env = unsafe { Env::from_raw(info.env) };
+                let this = args.this();
+                let this_js_unknown = JsUnknown::from_js_value(&env, sys::v8_from_value(this))
+                    .unwrap_or_else(|_| {
+                        JsUnknown::from_js_value(
+                            &env,
+                            v8_create_undefined(&mut env.scope()).unwrap(),
+                        )
+                        .unwrap()
+                    });
                 let ctx = JsFunctionCallContext {
                     env: info.env,
                     args,
+                    this: this_js_unknown,
                 };
                 let callback = &info.callback;
                 let result = callback(&env, ctx).unwrap();
@@ -104,6 +115,35 @@ impl JsFunction {
         };
 
         let result = match local.call(scope, this, &args_v8) {
+            Some(result) => result,
+            None => v8_create_undefined(scope)?,
+        };
+
+        Return::from_js_value(&self.env, result)
+    }
+
+    pub fn call_with_args_with_recv<Return, Args>(
+        &self,
+        args: Args,
+        recv: &impl JsValue,
+    ) -> crate::Result<Return>
+    where
+        Args: JsValuesTupleIntoVec,
+        Return: FromJsValue,
+    {
+        let scope = &mut self.env.scope();
+
+        let args = args.into_vec(&self.env)?;
+        let mut args_v8 = vec![];
+        for arg in args {
+            args_v8.push(arg);
+        }
+
+        let local = self.value.cast::<v8::Function>();
+
+        let this = recv.value();
+
+        let result = match local.call(scope, *this, &args_v8) {
             Some(result) => result,
             None => v8_create_undefined(scope)?,
         };
@@ -174,6 +214,7 @@ impl ToJsValue for JsFunction {
 pub struct JsFunctionCallContext<'a> {
     env: *mut Env,
     args: v8::FunctionCallbackArguments<'a>,
+    this: JsUnknown,
 }
 
 impl<'a> JsFunctionCallContext<'a> {
@@ -189,6 +230,10 @@ impl<'a> JsFunctionCallContext<'a> {
         let value = sys::v8_into_static_value(self.args.get(i));
         let value = Arg::from_js_value(&unsafe { Env::from_raw(self.env) }, value)?;
         Ok(value)
+    }
+
+    pub fn this(&self) -> JsUnknown {
+        self.this.clone()
     }
 
     pub fn len(&self) -> i32 {

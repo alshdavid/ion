@@ -1,12 +1,15 @@
 use std::cell::RefCell;
+use std::future::Future;
 use std::rc::Rc;
 use std::sync::Arc;
 
 use flume::Sender;
+use v8::ScriptOrigin;
 
 use crate::AsyncEnv;
 use crate::FromJsValue;
 use crate::JsObject;
+use crate::ToJsValue;
 use crate::platform::JsRealm;
 use crate::platform::background_worker::BackgroundTaskManager;
 use crate::platform::finalizer_registry::FinalizerRegistery;
@@ -134,6 +137,28 @@ impl Env {
         self.background_task_manager.spawn(fut)
     }
 
+    pub fn eval_script_with_origin<Return: FromJsValue>(
+        &self,
+        code: impl AsRef<str>,
+        origin: Option<&ScriptOrigin>,
+    ) -> crate::Result<Return> {
+        let scope = &mut self.scope();
+
+        let Some(code) = v8::String::new(scope, code.as_ref()) else {
+            panic!();
+        };
+
+        let Some(script) = v8::Script::compile(scope, code, origin) else {
+            panic!();
+        };
+
+        let Some(value) = script.run(scope) else {
+            panic!();
+        };
+
+        Return::from_js_value(self, sys::v8_from_value(value))
+    }
+
     pub fn eval_script<Return: FromJsValue>(
         &self,
         code: impl AsRef<str>,
@@ -182,5 +207,34 @@ impl Env {
         })?;
 
         Ok(())
+    }
+
+    /// Throw any JavaScript value.
+    pub fn throw<T: ToJsValue>(
+        &self,
+        value: T,
+    ) -> crate::Result<()> {
+        let scope = &mut self.scope();
+        let js_value = T::to_js_value(self, value)?;
+        let v8_value = sys::v8_into_static_value::<v8::Value, v8::Value>(js_value);
+        sys::v8_throw_exception(scope, v8_value);
+        Ok(())
+    }
+
+    /// Throws a JavaScript Error with the text provided.
+    pub fn throw_error(
+        &self,
+        msg: &str,
+        code: Option<&str>,
+    ) -> crate::Result<()> {
+        let scope = &mut self.scope();
+
+        let message = if let Some(code) = code {
+            format!("{}: {}", code, msg)
+        } else {
+            msg.to_string()
+        };
+
+        sys::v8_throw_error(scope, &message)
     }
 }

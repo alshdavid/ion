@@ -7,6 +7,7 @@ use std::thread::JoinHandle;
 use flume::Receiver;
 use flume::Sender;
 use flume::unbounded;
+use tracing::Span;
 
 use super::JsRealm;
 use super::active_context::ActiveContext;
@@ -37,6 +38,7 @@ pub(crate) enum JsWorkerEvent {
         id: usize,
         #[allow(clippy::type_complexity)]
         callback: Box<dyn Send + FnOnce(&Env) -> crate::Result<()>>,
+        span: Span,
     },
     Import {
         id: usize,
@@ -181,10 +183,11 @@ fn worker_thread(
                     break;
                 }
             }
-            JsWorkerEvent::Exec { id, callback } => {
+            JsWorkerEvent::Exec { id, callback, span } => {
                 let realm = realms.try_get(&id)?;
                 active_context.set(realm.context);
 
+                let _span_guard = span.enter();
                 if let Err(err) = callback(realm.env()) {
                     // TODO global error handler
                     panic!("Callback errored {:?}", err)
@@ -238,7 +241,7 @@ impl std::fmt::Debug for JsWorkerEvent {
             Self::CreateContext { resolve } => write!(f, "CreateContext"),
             Self::BackgroundTaskComplete { id } => write!(f, "BackgroundTaskComplete"),
             Self::RequestContextShutdown { id, resolve } => write!(f, "RequestContextShutdown"),
-            Self::Exec { id, callback } => write!(f, "Exec"),
+            Self::Exec { id, callback, span } => write!(f, "Exec"),
             Self::Import { id, specifier } => write!(f, "Import"),
             Self::RequestShutdown { resolve } => write!(f, "RequestShutdown"),
             Self::RunGarbageCollectionForTesting { resolve } => {

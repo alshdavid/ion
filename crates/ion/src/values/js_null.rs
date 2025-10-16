@@ -13,6 +13,11 @@ pub struct JsNull {
 }
 
 impl JsNull {
+    pub fn new(env: &Env) -> crate::Result<Self> {
+        let scope = &mut env.scope();
+        JsNull::from_js_value(env, sys::v8_from_value(v8::null(scope)))
+    }
+
     /// # SAFETY
     ///
     /// Skips checks for type conversion (TODO)
@@ -65,7 +70,6 @@ impl ToJsValue for JsNull {
 
 impl Env {
     pub fn get_null(&self) -> crate::Result<JsNull> {
-        let scope = &mut self.scope();
-        JsNull::from_js_value(self, sys::v8_from_value(v8::null(scope)))
+        JsNull::new(self)
     }
 }

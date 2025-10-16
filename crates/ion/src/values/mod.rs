@@ -1,4 +1,7 @@
 mod common;
+mod js_array;
+mod js_array_buffer;
+mod js_boolean;
 mod js_deferred;
 mod js_exception;
 mod js_external;
@@ -15,6 +18,9 @@ pub mod thread_safe_function;
 pub mod thread_safe_promise;
 
 pub use common::*;
+pub use js_array::*;
+pub use js_array_buffer::*;
+pub use js_boolean::*;
 pub use js_deferred::*;
 pub use js_exception::*;
 pub use js_external::*;

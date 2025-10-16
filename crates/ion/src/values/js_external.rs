@@ -26,14 +26,19 @@ impl<T> JsExternal<T> {
         let ptr = Box::into_raw(Box::new(data)) as *mut c_void;
         let scope = &mut env.scope();
 
-        let ref_count = RefCounter::new(2);
+        let ref_count = RefCounter::new(1);
 
-        let value = v8::External::new(scope, ptr as _);
+        // Store both the data pointer AND the RefCounter in the V8 External
+        let external_data = Box::into_raw(Box::new((ptr, ref_count.clone())));
+        let value = v8::External::new(scope, external_data as _);
+
         env.finalizer_registry.register(&value.into(), {
             let ref_count = ref_count.clone();
             move || {
                 if ref_count.dec() {
+                    // Clean up both the data and the external_data tuple
                     drop(unsafe { Box::from_raw(ptr as *mut T) });
+                    drop(unsafe { Box::from_raw(external_data) });
                 }
             }
         });
@@ -48,9 +53,7 @@ impl<T> JsExternal<T> {
     }
 
     pub fn as_inner(&self) -> crate::Result<&T> {
-        let value = self.value.cast::<v8::External>();
-        let ptr = value.value();
-        let data = unsafe { &*(ptr as *mut T) };
+        let data = unsafe { &*(self.ptr as *mut T) };
         Ok(data)
     }
 }
@@ -58,7 +61,6 @@ impl<T> JsExternal<T> {
 impl<T> Clone for JsExternal<T> {
     fn clone(&self) -> Self {
         self.ref_count.inc();
-        println!("cloned Rust {}", self.ref_count.count() - 1);
         Self {
             value: self.value,
             env: self.env.clone(),
@@ -95,12 +97,17 @@ impl<T> FromJsValue for JsExternal<T> {
         value: Value,
     ) -> crate::Result<Self> {
         let external = value.cast::<v8::External>();
-        let ptr = external.value();
+        let external_data_ptr = external.value() as *const (*mut c_void, RefCounter);
+        let (ptr, ref_count) = unsafe { &*external_data_ptr };
+
+        // Increment the original RefCounter instead of creating a new one
+        ref_count.inc();
+
         Ok(Self {
             value,
             env: env.clone(),
-            ptr,
-            ref_count: Default::default(),
+            ptr: *ptr,
+            ref_count: ref_count.clone(),
             _data: Default::default(),
         })
     }

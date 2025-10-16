@@ -14,11 +14,13 @@ impl AsyncEnv {
         &self,
         callback: impl 'static + Send + FnOnce(&Env) -> crate::Result<()>,
     ) -> crate::Result<()> {
+        let span = tracing::Span::current();
         if self
             .tx
             .try_send(JsWorkerEvent::Exec {
                 id: self.realm_id,
                 callback: Box::new(callback),
+                span,
             })
             .is_err()
         {
