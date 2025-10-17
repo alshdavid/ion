@@ -1,0 +1,10 @@
+{
+    "compilerOptions": {
+        "types": ["./binding.d.ts"],
+        "module": "ESNext",
+        "checkJs": true,
+        "noEmit": true,
+        "strict": true,
+        "lib": ["ESNext"]
+    }
+}

@@ -6,6 +6,7 @@ mod deferred;
 mod eval;
 mod http_server;
 mod promise;
+mod readable_stream;
 mod run;
 mod set_interval;
 mod set_timeout;
@@ -31,6 +32,7 @@ fn main() -> anyhow::Result<()> {
         "run" => run::main(),
         "set_interval" => set_interval::main(),
         "set_timeout" => set_timeout::main(),
+        "readable_stream" => readable_stream::main(),
         "testing_background_tasks" => testing::background_tasks::main(),
         "testing_memory_usage_context" => testing::memory_usage_context::main(),
         "testing_memory_usage_module" => testing::memory_usage_module::main(),
