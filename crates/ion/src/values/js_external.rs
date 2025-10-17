@@ -158,7 +158,7 @@ mod tests {
             move |env| {
                 assert_refcount(&ref_counter, 2, "After Clone into JavaScript");
 
-                let external = JsExternal::new(&env, ref_counter)?;
+                let external = JsExternal::new(env, ref_counter)?;
 
                 env.global_this()?
                     .set_named_property("__global", external)?;
