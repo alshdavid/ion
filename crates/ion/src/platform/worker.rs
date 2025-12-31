@@ -10,7 +10,6 @@ use flume::unbounded;
 use tracing::Span;
 
 use super::JsRealm;
-use super::active_context::ActiveContext;
 use super::extension::Extension;
 use super::module::Module;
 use crate::Env;
@@ -19,7 +18,6 @@ use crate::JsResolver;
 use crate::JsTransformer;
 use crate::fs::FileSystem;
 use crate::platform::background_worker::BackgroundTaskManager;
-use crate::platform::sys;
 use crate::utils::HashMapExt;
 use crate::utils::PathExt;
 
@@ -97,9 +95,6 @@ fn worker_thread(
     let mut isolate = v8::Isolate::new(v8::CreateParams::default());
     let isolate_ptr = isolate.as_mut() as *mut v8::Isolate;
 
-    // Used to switch between context scopes on the same thread
-    let mut active_context = ActiveContext::new(isolate_ptr);
-
     // Maintain a store of Global<Context> to help with cleanup on shutdown.
     let mut realms = HashMap::<usize, Box<JsRealm>>::new();
 
@@ -112,8 +107,6 @@ fn worker_thread(
         // println!("{:?} {:?}", active_context, event);
         match event {
             JsWorkerEvent::CreateContext { resolve } => {
-                active_context.unset();
-
                 let realm = JsRealm::new(
                     isolate_ptr,
                     fs.clone(),
@@ -123,7 +116,6 @@ fn worker_thread(
                     tx.clone(),
                 );
                 let realm_id = realm.id();
-                active_context.set(realm.context);
 
                 Extension::register_extensions(&realm, &extensions, &transformers)?;
 
@@ -154,21 +146,7 @@ fn worker_thread(
                     continue;
                 };
 
-                active_context.set(realm.context);
-
-                let Some((context_scope, handle_scope)) = active_context.take() else {
-                    panic!()
-                };
-
-                let context = realm.context;
-                let global_this = realm.global_this;
                 let finalizer_registry = realm.finalizer_registry;
-
-                drop(context_scope);
-                drop(handle_scope);
-
-                drop(sys::v8_drop_global_this(global_this));
-                drop(sys::v8_drop_context(context));
                 finalizer_registry.clear();
                 drop(finalizer_registry);
 
@@ -185,7 +163,6 @@ fn worker_thread(
             }
             JsWorkerEvent::Exec { id, callback, span } => {
                 let realm = realms.try_get(&id)?;
-                active_context.set(realm.context);
 
                 let _span_guard = span.enter();
                 if let Err(err) = callback(realm.env()) {

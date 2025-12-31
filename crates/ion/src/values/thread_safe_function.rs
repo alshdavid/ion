@@ -9,6 +9,7 @@ use crate::JsFunction;
 use crate::JsUnknown;
 use crate::JsValue;
 use crate::JsValuesTupleIntoVec;
+use crate::platform::sys;
 use crate::utils::channel::oneshot;
 
 pub struct ThreadSafeFunction {
@@ -29,8 +30,8 @@ impl ThreadSafeFunction {
         env.inc_ref();
 
         // SAFETY: Force function to be Send + Sync
-        let inner = *target.value();
-        let inner = v8::Global::new(scope, inner);
+        let inner = target.value();
+        let inner = v8::Global::new(scope, inner.as_inner());
         let inner = Box::new(inner);
         let inner = Box::into_raw(inner);
         let inner = inner as usize;
@@ -50,18 +51,22 @@ impl ThreadSafeFunction {
         let inner = self.inner;
 
         self.env.exec(move |env| {
-            let scope = &mut env.scope();
+            let root_scope = &mut env.scope();
+            v8::callback_scope!(unsafe scope, env.isolate());
 
             let inner = inner as *const v8::Local<'static, v8::Function>;
             let inner = unsafe { *inner };
             let inner = v8::Local::new(scope, inner);
 
-            let arguments = map_arguments(env)?.into_vec(env)?;
+            let mut arguments = Vec::<v8::Local<'static, v8::Value>>::new();
+            for js_argument in map_arguments(env)?.into_vec(env)? {
+                arguments.push(js_argument.as_inner());
+            }
 
             let recv = v8::undefined(scope);
-            let ret = inner.call(scope, recv.into(), &arguments).unwrap();
+            let ret = inner.call(root_scope, recv.into(), &arguments).unwrap();
 
-            let ret = JsUnknown::from_js_value(env, ret)?;
+            let ret = JsUnknown::from_js_value(env, sys::Value::new(ret))?;
             map_return(env, ret)?;
 
             Ok(())

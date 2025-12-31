@@ -8,6 +8,7 @@ use crate::FromJsValue;
 use crate::JsPromise;
 use crate::JsPromiseResult;
 use crate::JsValue;
+use crate::platform::sys;
 use crate::utils::channel::oneshot;
 
 pub struct ThreadSafePromise {
@@ -28,7 +29,7 @@ impl ThreadSafePromise {
         env.inc_ref();
 
         // SAFETY: Force function to be Send + Sync
-        let inner = *target.value();
+        let inner = target.value().as_inner();
         let inner = v8::Global::new(scope, inner);
         let inner = Box::new(inner);
         let inner = Box::into_raw(inner);
@@ -58,7 +59,7 @@ impl ThreadSafePromise {
             let inner = unsafe { *inner };
             let inner = v8::Local::new(scope, inner);
 
-            let promise = JsPromise::from_js_value(env, inner)?;
+            let promise = JsPromise::from_js_value(env, sys::Value::new(inner))?;
 
             promise.settled(settled_callback)
         })

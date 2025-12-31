@@ -21,7 +21,7 @@ impl JsArrayBuffer {
         let scope = &mut env.scope();
         let array_buffer = v8::ArrayBuffer::new(scope, length);
         Ok(Self {
-            value: sys::v8_from_value(array_buffer),
+            value: sys::Value::new(array_buffer.into()),
             env: env.clone(),
         })
     }
@@ -46,7 +46,7 @@ impl JsArrayBuffer {
         }
 
         Ok(Self {
-            value: sys::v8_from_value(array_buffer),
+            value: sys::Value::new(array_buffer.into()),
             env: env.clone(),
         })
     }
@@ -58,7 +58,7 @@ impl JsArrayBuffer {
         let scope = &mut env.scope();
         let array_buffer = v8::ArrayBuffer::new(scope, length);
         Ok(Self {
-            value: sys::v8_from_value(array_buffer),
+            value: sys::Value::new(array_buffer.into()),
             env: env.clone(),
         })
     }
@@ -198,7 +198,7 @@ impl ToJsValue for Vec<u8> {
         env: &Env,
         val: Self,
     ) -> crate::Result<Value> {
-        Ok(*JsArrayBuffer::from_bytes(env, &val)?.value())
+        Ok(JsArrayBuffer::from_bytes(env, &val)?.value().clone())
     }
 }
 
@@ -207,7 +207,7 @@ impl ToJsValue for &[u8] {
         env: &Env,
         val: Self,
     ) -> crate::Result<Value> {
-        Ok(*JsArrayBuffer::from_bytes(env, val)?.value())
+        Ok(JsArrayBuffer::from_bytes(env, val)?.value().clone())
     }
 }
 
