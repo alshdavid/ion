@@ -30,11 +30,13 @@ pub fn main() -> anyhow::Result<()> {
             move || {
                 println!("Promise Start");
                 thread::sleep(Duration::from_secs(1));
-                
-                deferred.resolve(|_env| {
-                    //
-                    Ok(42)
-                }).expect("Deferred to complete");
+
+                deferred
+                    .resolve(|_env| {
+                        //
+                        Ok(42)
+                    })
+                    .expect("Deferred to complete");
 
                 println!("Promise End");
             }
@@ -47,7 +49,8 @@ pub fn main() -> anyhow::Result<()> {
     })?;
 
     ctx.exec_blocking(|env| {
-        env.eval_script::<JsUnknown>(r#"
+        env.eval_script::<JsUnknown>(
+            r#"
             console.log("Eval: Start");
             
             globalThis.foo
@@ -55,7 +58,8 @@ pub fn main() -> anyhow::Result<()> {
                 .catch(() => console.log("threw"));
 
             console.log("Eval: End");     
-        "#)?;
+        "#,
+        )?;
         Ok(())
     })?;
 

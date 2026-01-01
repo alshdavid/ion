@@ -17,7 +17,7 @@ pub fn main() -> anyhow::Result<()> {
         ],
         ..Default::default()
     })?;
-    
+
     let worker = runtime.spawn_worker(JsWorkerOptions::default())?;
     let ctx = worker.create_context()?;
 
@@ -45,7 +45,7 @@ pub fn main() -> anyhow::Result<()> {
                 }
                 JsPromiseResult::Rejected(err) => {
                     println!("Rejected With: {}", err.type_of())
-                },
+                }
             };
             Ok(())
         })?;
