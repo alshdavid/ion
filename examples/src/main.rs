@@ -1,4 +1,5 @@
 #![deny(unused_crate_dependencies)]
+mod _utils;
 mod basic;
 mod custom_extension;
 mod custom_resolver;
@@ -12,6 +13,7 @@ mod set_timeout;
 mod testing;
 mod thread_safe_function;
 mod thread_safe_promise;
+mod context_multiplexing;
 
 fn main() -> anyhow::Result<()> {
     let example = std::env::args()
@@ -31,6 +33,10 @@ fn main() -> anyhow::Result<()> {
         "run" => run::main(),
         "set_interval" => set_interval::main(),
         "set_timeout" => set_timeout::main(),
+        "context_multiplexing" => context_multiplexing::main(),
+        "thread_safe_function" => thread_safe_function::main(),
+        "thread_safe_promise" => thread_safe_promise::main(),
+
         "testing_background_tasks" => testing::background_tasks::main(),
         "testing_memory_usage_context" => testing::memory_usage_context::main(),
         "testing_memory_usage_module" => testing::memory_usage_module::main(),
@@ -42,8 +48,6 @@ fn main() -> anyhow::Result<()> {
         "testing_transformers" => testing::transformers::main(),
         "testing_typescript" => testing::typescript::main(),
         "testing_wait" => testing::wait::main(),
-        "thread_safe_function" => thread_safe_function::main(),
-        "thread_safe_promise" => thread_safe_promise::main(),
         _ => Err(anyhow::anyhow!("No example for: \"{}\"", example)),
     }
 }

@@ -23,15 +23,18 @@ pub fn main() -> anyhow::Result<()> {
     .normalize();
 
     let runtime = JsRuntime::initialize_once(JsRuntimeOptions {
-        extensions: vec![
-            ion::extensions::console(),
-            ion::extensions::set_interval(),
-            ion::extensions::set_timeout(),
-        ],
         transformers: vec![
             ion::transformers::json(),
             ion::transformers::ts(),
             ion::transformers::tsx(),
+        ],
+        extensions: vec![
+            ion::extensions::event_target(),
+            ion::extensions::console(),
+            ion::extensions::set_timeout(),
+            ion::extensions::set_interval(),
+            ion::extensions::test(),
+            ion::extensions::global_this(),
         ],
         ..Default::default()
     })?;
