@@ -1,12 +1,17 @@
-export async function executeExample(testName: string): Promise<string> {
-    const scriptPath = new URL(import.meta.url).pathname;
-    const scriptDir = scriptPath.substring(0, scriptPath.lastIndexOf('/'));
+import { Paths } from './paths.ts'
 
-    const command = new Deno.Command("cargo", {
-        args: ["run", "-p", "ion_examples", "--", testName],
+const binName = Deno.build.os === "windows" ? "ion_examples.exe" : "ion_examples"
+
+export async function executeExample(testName: string, args: string[] = [], env: Record<string, string> = {}): Promise<string> {
+    const command = new Deno.Command(Paths["~/"]("target", "debug", binName), {
+        args: [testName, ...args],
         stdout: "piped",
         stderr: "piped",
-        cwd: scriptDir,
+        cwd: Paths["~"],
+        env: {
+            ...Deno.env.toObject(),
+            ...env
+        }
     });
 
     const { code, stdout, stderr } = await command.output();

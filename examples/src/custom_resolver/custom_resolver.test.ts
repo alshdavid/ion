@@ -6,7 +6,7 @@ import { executeExample } from '../../test-utils/run_test.ts'
 Deno.test("custom_resolver", async () => {
     const result = await executeExample("custom_resolver")
     assertEquals(result, [
-        `Custom Resolver Has Run For Path "${Paths["~/examples/"]("test-utils")}"`,
+        `Custom Resolver Has Run For Path "${Paths["~"]}"`,
         `Custom Resolver Has Run For Path "${Paths["~/examples/"]('js', 'modules', 'index.js')}"`,
         `Custom Resolver Has Run For Path "${Paths["~/examples/"]('js', 'modules', 'index.js')}"`,
         `Custom Resolver Has Run For Path "${Paths["~/examples/"]('js', 'modules', 'a.js')}"`,
