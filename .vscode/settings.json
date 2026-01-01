@@ -3,7 +3,7 @@
         "commands": [
             {
                 "match": ".rs",
-                "cmd": "cargo xfmt --file ${file}"
+                "cmd": "cargo xfmt"
             }
         ]
     },

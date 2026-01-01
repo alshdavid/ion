@@ -8,21 +8,23 @@ static CARGO_MANIFEST_DIR: &str = env!("CARGO_MANIFEST_DIR");
 pub fn main() -> anyhow::Result<()> {
     let entry_point = PathBuf::from(CARGO_MANIFEST_DIR)
         .join("src")
-        .join("testing")
         .join("transformers")
         .join("js")
         .join("main.js");
 
     let runtime = JsRuntime::initialize_once(JsRuntimeOptions {
-        extensions: vec![
-            ion::extensions::console(),
-            ion::extensions::set_interval(),
-            ion::extensions::set_timeout(),
-        ],
         transformers: vec![
             ion::transformers::json(),
             ion::transformers::ts(),
             ion::transformers::tsx(),
+        ],
+        extensions: vec![
+            ion::extensions::event_target(),
+            ion::extensions::console(),
+            ion::extensions::set_timeout(),
+            ion::extensions::set_interval(),
+            ion::extensions::test(),
+            ion::extensions::global_this(),
         ],
         ..Default::default()
     })?;

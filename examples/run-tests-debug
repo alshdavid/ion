@@ -3,4 +3,13 @@ set -e
 SCRIPT_PATH=`dirname $0 | while read a; do cd $a && pwd && break; done`
 
 $(cd $SCRIPT_PATH && cargo build)
-exec deno test -A --fail-fast $SCRIPT_PATH/src
+
+if [ $# -eq 0 ]; then
+    exec deno test -A --fail-fast $SCRIPT_PATH/src
+else
+    TEST_PATHS=""
+    for arg in "$@"; do
+        TEST_PATHS="$TEST_PATHS $SCRIPT_PATH/src/$arg"
+    done
+    exec deno test -A --fail-fast $TEST_PATHS
+fi
