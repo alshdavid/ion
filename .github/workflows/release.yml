@@ -45,7 +45,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: eval $(curl -sSf sh.davidalsh.com/rust.sh | sh)
+      - run: eval $(curl -sSf sh.davidalsh.com/deno.sh | sh)
       - run: cargo test
+      - run: ./examples/run-tests
 
   format:
     name: 📝 Format

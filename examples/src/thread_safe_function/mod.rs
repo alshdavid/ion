@@ -4,21 +4,24 @@ use std::time::Duration;
 use ion::*;
 
 pub fn main() -> anyhow::Result<()> {
-    let rt = JsRuntime::initialize_once(JsRuntimeOptions {
-        extensions: vec![
-            ion::extensions::console(),
-            ion::extensions::set_interval(),
-            ion::extensions::set_timeout(),
-        ],
+    let runtime = JsRuntime::initialize_once(JsRuntimeOptions {
         transformers: vec![
             ion::transformers::json(),
             ion::transformers::ts(),
             ion::transformers::tsx(),
         ],
+        extensions: vec![
+            ion::extensions::event_target(),
+            ion::extensions::console(),
+            ion::extensions::set_timeout(),
+            ion::extensions::set_interval(),
+            ion::extensions::test(),
+            ion::extensions::global_this(),
+        ],
         ..Default::default()
     })?;
 
-    let wrk = rt.spawn_worker(JsWorkerOptions::default())?;
+    let wrk = runtime.spawn_worker(JsWorkerOptions::default())?;
     let ctx = wrk.create_context()?;
 
     ctx.exec_blocking(|env| {
@@ -47,16 +50,16 @@ pub fn main() -> anyhow::Result<()> {
                     )
                     .unwrap();
 
+                thread::sleep(Duration::from_millis(100));
                 println!("Ret: {}", ret);
-                thread::sleep(Duration::from_secs(1));
             }
         });
 
         thread::spawn({
             let tsfn = tsfn.clone();
             move || {
-                let a = 1;
-                let b = 1;
+                let a = 2;
+                let b = 2;
 
                 let ret = tsfn
                     .call_blocking(
@@ -67,8 +70,8 @@ pub fn main() -> anyhow::Result<()> {
                     )
                     .unwrap();
 
+                thread::sleep(Duration::from_millis(200));
                 println!("Ret: {}", ret);
-                thread::sleep(Duration::from_secs(1));
             }
         });
 

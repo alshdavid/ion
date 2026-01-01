@@ -1,10 +1,15 @@
 {
-  "emeraldwalk.runonsave": {
-    "commands": [
-      {
-        "match": ".rs",
-        "cmd": "cargo xfmt --file ${file}"
-      }
-    ]
-  }
+    "emeraldwalk.runonsave": {
+        "commands": [
+            {
+                "match": ".rs",
+                "cmd": "cargo xfmt --file ${file}"
+            }
+        ]
+    },
+    "deno.enable": true,
+    "deno.enablePaths": [
+        "examples/test-utils",
+        "examples/src",
+    ],
 }
