@@ -2,4 +2,5 @@
 set -e
 SCRIPT_PATH=`dirname $0 | while read a; do cd $a && pwd && break; done`
 
+$(cd $SCRIPT_PATH && cargo build)
 exec deno test -A --parallel $SCRIPT_PATH/src
