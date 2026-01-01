@@ -45,8 +45,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: eval $(curl -sSf sh.davidalsh.com/rust.sh | sh)
-      - run: eval $(curl -sSf sh.davidalsh.com/deno.sh | sh)
       - run: cargo test
+
+  test-e2e:
+    name: 🧪 Test E2E
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: eval $(curl -sSf sh.davidalsh.com/rust.sh | sh)
+      - run: eval $(curl -sSf sh.davidalsh.com/deno.sh | sh)
       - run: ./examples/run-tests
 
   format:
@@ -175,6 +182,7 @@ jobs:
     needs:
       - version
       - test
+      - test-e2e
       - format
       - build_linux_amd64
       - build_linux_arm64
