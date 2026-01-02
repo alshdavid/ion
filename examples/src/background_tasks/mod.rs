@@ -25,34 +25,34 @@ pub fn main() -> anyhow::Result<()> {
     let ctx = worker.create_context()?;
 
     // Execute some JavaScript in the context
-    ctx.exec(|env| {
+    ctx.exec_blocking(|env| {
+        // Tell the runtime that it must remain alive
+        // Safety: This must be manually incremented and decremented
+        //         if the ref count is greater than 0, the runtime
+        //         will remain alive until it's 0
         env.inc_ref();
 
         env.spawn_background({
             let env = env.as_async();
             async move {
-                println!("Background Task Started");
+                println!("Task [rs]: Started");
                 tokio::time::sleep(Duration::from_secs(1)).await;
-                println!("Background Task Ended");
 
                 env.exec_async(|env| {
-                    println!("hi");
+                    println!("Task [js]: Message");
+                    // Tell the runtime that this task will no longer require keeping it alive
                     env.dec_ref();
                     Ok(())
                 })
                 .await?;
+
+                println!("Task [rs]: Ended");
                 Ok(())
             }
         })?;
 
         Ok(())
     })?;
-
-    println!("Context Dropping");
-    drop(ctx);
-    drop(worker);
-
-    println!("Context Dropped");
 
     Ok(())
 }

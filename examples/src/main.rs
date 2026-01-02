@@ -7,6 +7,7 @@ mod custom_extension;
 mod custom_resolver;
 mod deferred;
 mod eval;
+mod external_value;
 mod http_server;
 mod memory_usage_context;
 mod memory_usage_module;
@@ -53,6 +54,7 @@ fn main() -> anyhow::Result<()> {
         "memory_usage_worker" => memory_usage_worker::main(),
         "memory_usage_module" => memory_usage_module::main(),
         "memory_usage_value" => memory_usage_value::main(),
+        "external_value" => external_value::main(),
         _ => Err(anyhow::anyhow!("No example for: \"{}\"", example)),
     }
 }
