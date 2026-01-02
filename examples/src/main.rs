@@ -11,13 +11,13 @@ mod http_server;
 mod memory_usage_context;
 mod memory_usage_module;
 mod memory_usage_tsfn;
+mod memory_usage_value;
 mod memory_usage_worker;
 mod multiple_workers;
 mod promise;
 mod run;
 mod set_interval;
 mod set_timeout;
-mod testing;
 mod thread_safe_function;
 mod thread_safe_promise;
 mod transformers;
@@ -52,8 +52,7 @@ fn main() -> anyhow::Result<()> {
         "memory_usage_tsfn" => memory_usage_tsfn::main(),
         "memory_usage_worker" => memory_usage_worker::main(),
         "memory_usage_module" => memory_usage_module::main(),
-        //
-        "testing_memory_usage_value" => testing::memory_usage_value::main(),
+        "memory_usage_value" => memory_usage_value::main(),
         _ => Err(anyhow::anyhow!("No example for: \"{}\"", example)),
     }
 }

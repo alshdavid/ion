@@ -1,21 +1,18 @@
-use std::thread;
-use std::time::Duration;
-
 use ion::*;
 
-use crate::testing::MemoryUsageCounter;
+use crate::_utils::memory_usage::MemoryUsageCounter;
 
 pub fn main() -> anyhow::Result<()> {
     let memu = MemoryUsageCounter::default();
-    println!("[0] {:?}", memu);
+    println!("{}", memu.megabytes().json());
 
     let runtime = JsRuntime::initialize_once(JsRuntimeOptions::default())?;
-    println!("[1] {:?}", memu);
+    println!("{}", memu.megabytes().json());
 
     let worker = runtime.spawn_worker(JsWorkerOptions::default())?;
     let ctx = worker.create_context()?;
 
-    for i in 2..50 {
+    for _ in 2..300 {
         for _ in 2..100 {
             let _value = ctx.exec_blocking(|env| {
                 let value = env.eval_script::<JsNumber>("1 + 1")?;
@@ -23,8 +20,7 @@ pub fn main() -> anyhow::Result<()> {
             })?;
         }
 
-        println!("[{}] {:?}", i, memu);
-        thread::sleep(Duration::from_millis(100));
+        println!("{}", memu.megabytes().json());
     }
 
     Ok(())
