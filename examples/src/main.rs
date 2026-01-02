@@ -9,6 +9,7 @@ mod deferred;
 mod eval;
 mod http_server;
 mod memory_usage_context;
+mod memory_usage_module;
 mod memory_usage_tsfn;
 mod memory_usage_worker;
 mod multiple_workers;
@@ -50,8 +51,8 @@ fn main() -> anyhow::Result<()> {
         "memory_usage_context" => memory_usage_context::main(),
         "memory_usage_tsfn" => memory_usage_tsfn::main(),
         "memory_usage_worker" => memory_usage_worker::main(),
+        "memory_usage_module" => memory_usage_module::main(),
         //
-        "testing_memory_usage_module" => testing::memory_usage_module::main(),
         "testing_memory_usage_value" => testing::memory_usage_value::main(),
         _ => Err(anyhow::anyhow!("No example for: \"{}\"", example)),
     }

@@ -9,8 +9,8 @@ type MemoryUsageReport = {
 const thresholdMegabytes = 10
 const slice = 40
 
-Deno.test("memory_usage_context", async () => {
-    const result = await executeExample("memory_usage_context")
+Deno.test("memory_usage_module", async () => {
+    const result = await executeExample("memory_usage_module")
 
     const records: Array<MemoryUsageReport> = result.split('\n').map(v => JSON.parse(v))
     assert(records.length !== 0, "No records")
