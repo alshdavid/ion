@@ -111,6 +111,7 @@ impl Env {
         })
     }
 
+    #[allow(clippy::mut_from_ref)]
     pub fn isolate(&self) -> &mut v8::Isolate {
         // SAFETY: Lifetime of `Isolate` is longer than `Env`.
         unsafe { &mut *self.isolate }
@@ -118,7 +119,7 @@ impl Env {
 
     pub fn global_this(&self) -> crate::Result<JsObject> {
         let global_this = sys::Value::new(self.global_this.as_local().into());
-        JsObject::from_js_value(&self, global_this)
+        JsObject::from_js_value(self, global_this)
     }
 
     pub fn context(&self) -> v8::Local<'static, v8::Context> {
@@ -184,7 +185,7 @@ impl Env {
         code: impl AsRef<str>,
     ) -> crate::Result<JsObject> {
         // TODO cache a module based on its content hash otherwise it will leak
-        let realm = JsRealm::v8_revive(&self);
+        let realm = JsRealm::v8_revive(self);
 
         let module = Module::new(realm, hash_sha256(code.as_ref().as_bytes()), code.as_ref())?;
 

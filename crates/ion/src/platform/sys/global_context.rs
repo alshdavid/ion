@@ -11,8 +11,8 @@ use super::RootScopeInner;
 // root scope and replace it with the scope of the new context.
 // This enables context multiplexing
 thread_local! {
-    static CURRENT_CONTEXT: Cell<Option<usize>> = Cell::new(None);
-    static CURRENT_SCOPE: RefCell<Option<RootScope>> = RefCell::new(None);
+    static CURRENT_CONTEXT: Cell<Option<usize>> = const { Cell::new(None) };
+    static CURRENT_SCOPE: RefCell<Option<RootScope>> = const { RefCell::new(None) };
 }
 
 struct GlobalContextInner(*mut v8::Isolate, NonNull<v8::Context>);
@@ -29,14 +29,14 @@ pub struct GlobalContext(usize, Rc<GlobalContextInner>);
 
 impl Clone for GlobalContext {
     fn clone(&self) -> Self {
-        Self(self.0.clone(), Rc::clone(&self.1))
+        Self(self.0, Rc::clone(&self.1))
     }
 }
 
 impl GlobalContext {
     pub fn new(isolate: &mut v8::Isolate) -> Self {
         let isolate_ptr = { &mut *isolate } as *mut v8::Isolate;
-        v8::scope!(let handle_scope, isolate.as_mut());
+        v8::scope!(let handle_scope, isolate);
         let context_local = v8::Context::new(handle_scope, Default::default());
         let context_global = v8::Global::new(unsafe { &mut *isolate_ptr }, context_local);
 
@@ -51,6 +51,7 @@ impl GlobalContext {
         }
     }
 
+    #[allow(clippy::mut_from_ref)]
     pub fn isolate(&self) -> &mut v8::Isolate {
         unsafe { &mut *self.1.0 }
     }
@@ -80,6 +81,7 @@ impl GlobalContext {
         CURRENT_SCOPE.replace(None);
 
         let scope = Box::new(v8::HandleScope::new(unsafe { &mut *self.1.0 }));
+        #[allow(clippy::unnecessary_cast)]
         let scope_ptr = Box::into_raw(scope) as *mut v8::ScopeStorage<v8::HandleScope<'static, ()>>;
 
         let scope_pinned = {
@@ -100,7 +102,7 @@ impl GlobalContext {
             context_scope: context_scope_ptr,
         }));
 
-        CURRENT_CONTEXT.replace(Some(self.0.clone()));
+        CURRENT_CONTEXT.replace(Some(self.0));
         CURRENT_SCOPE.replace(Some(root_scope));
     }
 }

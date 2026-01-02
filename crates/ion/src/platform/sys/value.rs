@@ -22,7 +22,8 @@ impl Clone for Value {
 
 impl Value {
     pub fn new<'a>(value: v8::Local<'a, v8::Value>) -> Self {
-        let value = Box::new(value.into());
+        let value = Box::new(value);
+        #[allow(clippy::unnecessary_cast)]
         let value_ptr = Box::into_raw(value) as *mut v8::Local<'static, v8::Value>;
         Self(Rc::new(RawValueInner(value_ptr)))
     }
