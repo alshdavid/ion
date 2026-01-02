@@ -13,7 +13,7 @@ use crate::values::ToJsValue;
 pub struct JsExternal<T> {
     pub(crate) value: Value,
     pub(crate) env: Env,
-    ptr: *mut c_void,
+    data: *mut (*mut c_void, RefCounter),
     ref_count: RefCounter,
     _data: PhantomData<T>,
 }
@@ -23,11 +23,13 @@ impl<T> JsExternal<T> {
         env: &Env,
         data: T,
     ) -> crate::Result<Self> {
-        let ptr = Box::into_raw(Box::new(data)) as *mut c_void;
         let scope = &mut env.scope();
 
         // One for Rust, One for JavaScript
         let ref_count = RefCounter::new(2);
+
+        // Convert the data into a pointer
+        let ptr = Box::into_raw(Box::new(data)) as *mut c_void;
 
         // Store both the data pointer AND the RefCounter in the V8 External
         let external_data = Box::into_raw(Box::new((ptr, ref_count.clone())));
@@ -38,8 +40,10 @@ impl<T> JsExternal<T> {
             move || {
                 if ref_count.dec() {
                     // Clean up both the data and the external_data tuple
-                    drop(unsafe { Box::from_raw(ptr as *mut T) });
-                    drop(unsafe { Box::from_raw(external_data) });
+                    let (ptr, ref_counter) = *unsafe { Box::from_raw(external_data) };
+                    let data = unsafe { Box::from_raw(ptr as *mut T) };
+                    drop(data);
+                    drop(ref_counter);
                 }
             }
         });
@@ -47,14 +51,14 @@ impl<T> JsExternal<T> {
         Ok(Self {
             value: sys::v8_from_value(value),
             env: env.clone(),
-            ptr,
+            data: external_data,
             ref_count,
             _data: Default::default(),
         })
     }
 
     pub fn as_inner(&self) -> crate::Result<&T> {
-        let data = unsafe { &*(self.ptr as *mut T) };
+        let data = unsafe { &*((*self.data).0 as *mut T) };
         Ok(data)
     }
 }
@@ -65,7 +69,7 @@ impl<T> Clone for JsExternal<T> {
         Self {
             value: self.value,
             env: self.env.clone(),
-            ptr: self.ptr,
+            data: self.data,
             ref_count: self.ref_count.clone(),
             _data: self._data,
         }
@@ -75,7 +79,10 @@ impl<T> Clone for JsExternal<T> {
 impl<T> Drop for JsExternal<T> {
     fn drop(&mut self) {
         if self.ref_count.dec() {
-            drop(unsafe { Box::from_raw(self.ptr as *mut T) });
+            let (ptr, ref_counter) = *unsafe { Box::from_raw(self.data) };
+            let data = unsafe { Box::from_raw(ptr as *mut T) };
+            drop(data);
+            drop(ref_counter);
         }
     }
 }
@@ -98,8 +105,8 @@ impl<T> FromJsValue for JsExternal<T> {
         value: Value,
     ) -> crate::Result<Self> {
         let external = value.cast::<v8::External>();
-        let external_data_ptr = external.value() as *const (*mut c_void, RefCounter);
-        let (ptr, ref_count) = unsafe { &*external_data_ptr };
+        let external_data_ptr = external.value() as *mut (*mut c_void, RefCounter);
+        let (_, ref_count) = unsafe { &*external_data_ptr };
 
         // Increment the original RefCounter instead of creating a new one
         ref_count.inc();
@@ -107,7 +114,7 @@ impl<T> FromJsValue for JsExternal<T> {
         Ok(Self {
             value,
             env: env.clone(),
-            ptr: *ptr,
+            data: external_data_ptr,
             ref_count: ref_count.clone(),
             _data: Default::default(),
         })

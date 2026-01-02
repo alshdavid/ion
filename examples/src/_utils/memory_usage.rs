@@ -31,7 +31,7 @@ impl MemoryUsageCounter {
         } else if current == *previous {
             0
         } else {
-            -(current - *previous)
+            current - *previous
         };
 
         (*previous) = current;

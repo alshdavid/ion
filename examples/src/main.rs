@@ -10,6 +10,7 @@ mod eval;
 mod external_value;
 mod http_server;
 mod memory_usage_context;
+mod memory_usage_external_value;
 mod memory_usage_module;
 mod memory_usage_tsfn;
 mod memory_usage_value;
@@ -55,6 +56,7 @@ fn main() -> anyhow::Result<()> {
         "memory_usage_module" => memory_usage_module::main(),
         "memory_usage_value" => memory_usage_value::main(),
         "external_value" => external_value::main(),
+        "memory_usage_external_value" => memory_usage_external_value::main(),
         _ => Err(anyhow::anyhow!("No example for: \"{}\"", example)),
     }
 }
