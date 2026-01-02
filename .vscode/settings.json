@@ -1,10 +1,6 @@
 {
     "emeraldwalk.runonsave": {
         "commands": [
-            {
-                "match": ".rs",
-                "cmd": "cargo xfmt"
-            }
         ]
     },
     "deno.enable": true,

@@ -8,6 +8,7 @@ mod custom_resolver;
 mod deferred;
 mod eval;
 mod http_server;
+mod memory_usage_context;
 mod multiple_workers;
 mod promise;
 mod run;
@@ -44,9 +45,8 @@ fn main() -> anyhow::Result<()> {
         "multiple_workers" => multiple_workers::main(),
         "typescript" => typescript::main(),
         "transformers" => transformers::main(),
-
+        "memory_usage_context" => memory_usage_context::main(),
         //
-        "testing_memory_usage_context" => testing::memory_usage_context::main(),
         "testing_memory_usage_module" => testing::memory_usage_module::main(),
         "testing_memory_usage_tsfn" => testing::memory_usage_tsfn::main(),
         "testing_memory_usage_value" => testing::memory_usage_value::main(),

@@ -12,6 +12,7 @@ pub enum Error {
     Generic(String),
     PlatformCommunicationError,
     PlatformInitializeError,
+    PlatformDisposeError,
     IsolateNotInitializedError,
     EventLoopNotInitializedError,
     WorkerInitializeError,

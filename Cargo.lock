@@ -926,6 +926,8 @@ dependencies = [
  "normalize-path",
  "num_cpus",
  "parking_lot",
+ "serde",
+ "serde_json",
  "tokio",
  "tokio-util",
 ]

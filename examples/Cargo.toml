@@ -20,3 +20,5 @@ num_cpus.workspace = true
 memory-stats.workspace = true
 normalize-path.workspace = true
 parking_lot.workspace = true
+serde.workspace = true
+serde_json.workspace = true

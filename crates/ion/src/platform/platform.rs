@@ -35,6 +35,7 @@ pub(crate) enum PlatformEvent {
             Mutex<Option<JoinHandle<crate::Result<()>>>>,
         )>,
     },
+    Dispose,
 }
 
 pub(crate) static HAS_INIT: AtomicBool = AtomicBool::new(false);
@@ -126,6 +127,11 @@ pub(crate) static PLATFORM: LazyLock<Sender<PlatformEvent>> = LazyLock::new(|| {
                         // TODO implement global error handler
                         panic!("Internal error starting worker")
                     };
+                }
+                PlatformEvent::Dispose => {
+                    unsafe { v8::V8::dispose() };
+                    v8::V8::dispose_platform();
+                    break;
                 }
             }
         }

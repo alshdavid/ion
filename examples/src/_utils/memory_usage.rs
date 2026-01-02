@@ -2,9 +2,89 @@ use std::sync::Arc;
 
 use memory_stats::memory_stats;
 use parking_lot::Mutex;
+use serde::Serialize;
+
+#[derive(Debug, Serialize)]
+pub struct MemoryUsageReport {
+    pub units: String,
+    pub value: isize,
+    pub change: isize,
+}
+
+impl MemoryUsageReport {
+    pub fn json(&self) -> String {
+        format!("{}", serde_json::to_string(&self).unwrap())
+    }
+}
 
 #[derive(Default)]
 pub struct MemoryUsageCounter(Arc<Mutex<isize>>);
+
+#[allow(dead_code)]
+impl MemoryUsageCounter {
+    pub fn megabytes(&self) -> MemoryUsageReport {
+        let mut previous = self.0.lock();
+        let current = Self::get_memory_usage_mb();
+
+        let change = if current > *previous {
+            current - *previous
+        } else if current == *previous {
+            0
+        } else {
+            (current - *previous) * -1
+        };
+
+        (*previous) = current;
+
+        MemoryUsageReport {
+            units: "mb".to_string(),
+            value: current,
+            change,
+        }
+    }
+
+    pub fn kilobytes(&self) -> MemoryUsageReport {
+        let mut previous = self.0.lock();
+        let current = Self::get_memory_usage_kb();
+
+        let change = if current > *previous {
+            current - *previous
+        } else if current == *previous {
+            0
+        } else {
+            (current - *previous) * -1
+        };
+
+        (*previous) = current;
+
+        MemoryUsageReport {
+            units: "kb".to_string(),
+            value: current,
+            change,
+        }
+    }
+
+    fn get_memory_usage_mb() -> isize {
+        if let Some(usage) = memory_stats() {
+            let b = usage.physical_mem;
+            let kb = b / 1000;
+            let mb = kb / 1000;
+            mb as isize
+        } else {
+            panic!("Couldn't get the current memory usage :(");
+        }
+    }
+
+    fn get_memory_usage_kb() -> isize {
+        if let Some(usage) = memory_stats() {
+            let b = usage.physical_mem;
+            let kb = b / 1000;
+            kb as isize
+        } else {
+            panic!("Couldn't get the current memory usage :(");
+        }
+    }
+}
 
 impl std::fmt::Debug for MemoryUsageCounter {
     fn fmt(
@@ -29,18 +109,5 @@ impl std::fmt::Debug for MemoryUsageCounter {
 
         (*previous) = current;
         result
-    }
-}
-
-impl MemoryUsageCounter {
-    fn get_memory_usage_mb() -> isize {
-        if let Some(usage) = memory_stats() {
-            let b = usage.physical_mem;
-            let kb = b / 1000;
-            let mb = kb / 1000;
-            mb as isize
-        } else {
-            panic!("Couldn't get the current memory usage :(");
-        }
     }
 }

@@ -150,6 +150,13 @@ impl JsRuntime {
         HAS_INIT.load(Ordering::Acquire)
     }
 
+    pub unsafe fn dispose(&self) -> crate::Result<()> {
+        if PLATFORM.send(PlatformEvent::Dispose).is_err() {
+            return Err(crate::Error::PlatformDisposeError);
+        };
+        Ok(())
+    }
+
     /// Spawns a dedicated worker thread for isolates
     pub fn spawn_worker(
         &self,
