@@ -9,6 +9,7 @@ mod deferred;
 mod eval;
 mod http_server;
 mod memory_usage_context;
+mod memory_usage_tsfn;
 mod multiple_workers;
 mod promise;
 mod run;
@@ -46,9 +47,9 @@ fn main() -> anyhow::Result<()> {
         "typescript" => typescript::main(),
         "transformers" => transformers::main(),
         "memory_usage_context" => memory_usage_context::main(),
+        "memory_usage_tsfn" => memory_usage_tsfn::main(),
         //
         "testing_memory_usage_module" => testing::memory_usage_module::main(),
-        "testing_memory_usage_tsfn" => testing::memory_usage_tsfn::main(),
         "testing_memory_usage_value" => testing::memory_usage_value::main(),
         "testing_memory_usage_worker" => testing::memory_usage_worker::main(),
         _ => Err(anyhow::anyhow!("No example for: \"{}\"", example)),

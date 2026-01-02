@@ -3,18 +3,35 @@ use std::time::Duration;
 
 use ion::*;
 
-use crate::testing::MemoryUsageCounter;
+use crate::_utils::memory_usage::MemoryUsageCounter;
 
 pub fn main() -> anyhow::Result<()> {
     let memu = MemoryUsageCounter::default();
-    println!("[0] {:?}", memu);
 
-    let runtime = JsRuntime::initialize_once(JsRuntimeOptions::default())?;
-    println!("[1] {:?}", memu);
+    println!("{}", memu.megabytes().json());
+
+    let runtime = JsRuntime::initialize_once(JsRuntimeOptions::debug(JsRuntimeOptions {
+        transformers: vec![
+            ion::transformers::json(),
+            ion::transformers::ts(),
+            ion::transformers::tsx(),
+        ],
+        extensions: vec![
+            ion::extensions::event_target(),
+            ion::extensions::console(),
+            ion::extensions::set_timeout(),
+            ion::extensions::set_interval(),
+            ion::extensions::test(),
+            ion::extensions::global_this(),
+        ],
+        ..Default::default()
+    }))?;
+
+    println!("{}", memu.megabytes().json());
 
     let worker = runtime.spawn_worker(JsWorkerOptions::default())?;
 
-    for i in 2..50 {
+    for _ in 2..50 {
         let ctx = worker.create_context()?;
         let mut v = vec![];
 
@@ -37,7 +54,8 @@ pub fn main() -> anyhow::Result<()> {
 
         v.clear();
         worker.run_garbage_collection_for_testing()?;
-        println!("[{}] {:?}", i, memu);
+
+        println!("{}", memu.megabytes().json());
         thread::sleep(Duration::from_millis(100));
     }
 
