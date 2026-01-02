@@ -54,6 +54,8 @@ jobs:
       - uses: actions/checkout@v4
       - run: eval $(curl -sSf sh.davidalsh.com/rust.sh | sh)
       - run: eval $(curl -sSf sh.davidalsh.com/deno.sh | sh)
+      - run: cargo build
+      - run: deno cache ./src/**/*.test.ts
       - run: ./examples/run-tests-debug
 
   format:
