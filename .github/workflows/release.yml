@@ -65,6 +65,8 @@ jobs:
       - uses: actions/checkout@v4
       - run: eval $(curl -sSf sh.davidalsh.com/rust.sh | sh)
       - run: cargo install cargo-xfmt
+      - run: cargo --version
+      - run: cargo clippy --version
       - run: cargo xfmt --check
       - run: cargo clippy -- --deny "warnings"
 
