@@ -26,7 +26,7 @@ pub fn main() -> anyhow::Result<()> {
 
     println!("{}", memu.megabytes().json());
 
-    for _ in 0..50 {
+    for _ in 0..300 {
         let worker = runtime.spawn_worker(JsWorkerOptions::default())?;
 
         {

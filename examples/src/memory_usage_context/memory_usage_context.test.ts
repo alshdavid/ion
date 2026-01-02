@@ -7,7 +7,7 @@ type MemoryUsageReport = {
 }
 
 const thresholdMegabytes = 10
-const slice = 40
+const slice = 250
 
 Deno.test("memory_usage_context", async () => {
     const result = await executeExample("memory_usage_context")
