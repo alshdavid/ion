@@ -13,7 +13,7 @@ pub struct MemoryUsageReport {
 
 impl MemoryUsageReport {
     pub fn json(&self) -> String {
-        format!("{}", serde_json::to_string(&self).unwrap())
+        serde_json::to_string(&self).unwrap().to_string()
     }
 }
 
@@ -31,7 +31,7 @@ impl MemoryUsageCounter {
         } else if current == *previous {
             0
         } else {
-            (current - *previous) * -1
+            -(current - *previous)
         };
 
         (*previous) = current;
@@ -52,7 +52,7 @@ impl MemoryUsageCounter {
         } else if current == *previous {
             0
         } else {
-            (current - *previous) * -1
+            -(current - *previous)
         };
 
         (*previous) = current;

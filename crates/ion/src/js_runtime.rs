@@ -150,6 +150,18 @@ impl JsRuntime {
         HAS_INIT.load(Ordering::Acquire)
     }
 
+    /// Releases any resources used by v8 and stops any utility threads
+    /// that may be running.  Note that disposing v8 is permanent, it
+    /// cannot be reinitialized.
+    ///
+    /// It should generally not be necessary to dispose v8 before exiting
+    /// a process, this should happen automatically.  It is only necessary
+    /// to use if the process needs the resources taken up by v8.
+    ///
+    /// # Safety
+    ///
+    /// Calling this function before completely disposing all isolates will lead
+    /// to a crash.
     pub unsafe fn dispose(&self) -> crate::Result<()> {
         if PLATFORM.send(PlatformEvent::Dispose).is_err() {
             return Err(crate::Error::PlatformDisposeError);
