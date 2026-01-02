@@ -1,13 +1,13 @@
-mod context;
-mod context_scope;
-mod error;
-mod global;
-mod isolate_scope;
+mod errors;
+mod global_context;
+mod global_this;
+mod helpers;
+mod root_scope;
 mod value;
 
-pub use self::context::*;
-pub use self::context_scope::*;
-pub use self::error::*;
-pub use self::global::*;
-pub use self::isolate_scope::*;
-pub use self::value::*;
+pub use errors::*;
+pub use global_context::*;
+pub use global_this::*;
+pub use helpers::*;
+pub use root_scope::*;
+pub use value::*;

@@ -6,6 +6,8 @@ use std::sync::Arc;
 use flume::Sender;
 
 use crate::Env;
+use crate::FromJsValue;
+use crate::JsObject;
 use crate::JsResolver;
 use crate::JsTransformer;
 use crate::fs::FileSystem;
@@ -32,8 +34,7 @@ pub struct JsRealm {
     pub(crate) shutdown_requested: Rc<RefCell<bool>>,
     pub(crate) modules: ModuleMap,
     pub(crate) tx: Sender<JsWorkerEvent>,
-    pub(crate) global_this: sys::__v8_global_this,
-    pub(crate) context: sys::__v8_context,
+    pub(crate) global_this: sys::GlobalThis,
 }
 
 impl JsRealm {
@@ -45,26 +46,8 @@ impl JsRealm {
         background_task_manager: Arc<BackgroundTaskManager>,
         tx: Sender<JsWorkerEvent>,
     ) -> Box<Self> {
-        let context = {
-            let handle_scope =
-                sys::v8_new_root_scope(v8::HandleScope::new(unsafe { &mut *isolate }));
-            let context = sys::v8_new_context(isolate, sys::v8_get_root_scope(handle_scope));
-            sys::v8_drop_root_scope(handle_scope);
-            context
-        };
-
-        let global_this = {
-            let handle_scope =
-                sys::v8_new_root_scope(v8::HandleScope::new(unsafe { &mut *isolate }));
-            let context_scope = sys::v8_new_context_scope(v8::ContextScope::new(
-                sys::v8_get_root_scope(handle_scope),
-                sys::v8_get_context(context),
-            ));
-            let global_this = sys::v8_new_global_this(context, context_scope);
-            sys::v8_drop_context_scope(context_scope);
-            sys::v8_drop_root_scope(handle_scope);
-            global_this
-        };
+        let context = sys::GlobalContext::new(unsafe { &mut *isolate });
+        let global_this = sys::GlobalThis::new(&context);
 
         let global_refs = RefCounter::new(0);
         let shutdown_requested = Rc::new(RefCell::new(false));
@@ -75,13 +58,13 @@ impl JsRealm {
 
         let env = Env::new(
             isolate,
-            context,
-            global_this,
+            context.clone(),
             Arc::clone(&background_task_manager),
             global_refs.clone(),
             Rc::clone(&shutdown_requested),
             tx.clone(),
             finalizer_registry.clone(),
+            global_this.clone(),
         );
 
         let mut realm = Box::new(JsRealm {
@@ -95,9 +78,7 @@ impl JsRealm {
             global_refs,
             shutdown_requested,
             finalizer_registry,
-            // v8 internals
             global_this,
-            context,
             tx,
         });
 
@@ -107,20 +88,11 @@ impl JsRealm {
 
         {
             // TODO use slot or data
-            let handle_scope =
-                sys::v8_new_root_scope(v8::HandleScope::new(unsafe { &mut *isolate }));
-            let context_scope = sys::v8_new_context_scope(v8::ContextScope::new(
-                sys::v8_get_root_scope(handle_scope),
-                sys::v8_get_context(context),
-            ));
-            let scope = sys::v8_get_context_scope(context_scope);
+            let scope = &mut context.scope();
+            let global_this = context.as_local().global(scope);
             let key = v8::String::new(scope, "__data").unwrap();
             let value = v8::External::new(scope, realm_ptr as _);
-            let global_this = sys::v8_get_context(realm.context).global(scope);
             global_this.set(scope, key.into(), value.into());
-
-            sys::v8_drop_context_scope(context_scope);
-            sys::v8_drop_root_scope(handle_scope);
         }
 
         realm.id = realm_id;
@@ -134,6 +106,11 @@ impl JsRealm {
 
     pub fn env(&self) -> &Env {
         &self.env
+    }
+
+    pub fn global_this(&self) -> crate::Result<JsObject> {
+        let global_this = sys::Value::new(self.global_this.as_local().into());
+        JsObject::from_js_value(&self.env, global_this)
     }
 
     pub fn spawn_background(
@@ -167,8 +144,9 @@ impl JsRealm {
         self.modules.clone()
     }
 
-    pub(crate) fn v8_revive<'a>(scope: &mut v8::HandleScope<'_>) -> &'a mut JsRealm {
-        let context = scope.get_current_context();
+    pub(crate) fn v8_revive<'a>(env: &Env) -> &'a mut JsRealm {
+        let context = env.context.as_local();
+        let scope = &mut env.context.scope();
         let global_this = context.global(scope);
         let data_key = v8::String::new(scope, "__data").unwrap();
         let data = global_this.get(scope, data_key.into()).unwrap();

@@ -18,7 +18,7 @@ impl JsArray {
         let scope = &mut env.scope();
         let array = v8::Array::new(scope, 0);
         Ok(Self {
-            value: sys::v8_from_value(array),
+            value: sys::Value::new(array.into()),
             env: env.clone(),
         })
     }
@@ -30,7 +30,7 @@ impl JsArray {
         let scope = &mut env.scope();
         let array = v8::Array::new(scope, length);
         Ok(Self {
-            value: sys::v8_from_value(array),
+            value: sys::Value::new(array.into()),
             env: env.clone(),
         })
     }
@@ -47,12 +47,12 @@ impl JsArray {
 
         for (index, item) in vec.into_iter().enumerate() {
             let js_value = T::to_js_value(env, item)?;
-            let v8_value = sys::v8_into_static_value::<v8::Value, v8::Value>(js_value);
+            let v8_value = sys::v8_into_static_value::<v8::Value, v8::Value>(js_value.as_inner());
             array.set_index(scope, index as u32, v8_value);
         }
 
         Ok(Self {
-            value: sys::v8_from_value(array),
+            value: sys::Value::new(array.into()),
             env: env.clone(),
         })
     }
@@ -73,18 +73,20 @@ impl JsArray {
         I: TryInto<u32>,
         I::Error: std::fmt::Debug,
     {
-        let scope = &mut self.env.scope();
+        let context = self.env.context.as_local();
+        v8::callback_scope!(unsafe scope, context);
+
         let Ok(array) = self.value.try_cast::<v8::Array>() else {
             return Err(crate::Error::ValueCastError);
         };
 
         let index_u32 = index.try_into().map_err(|_| crate::Error::ValueCastError)?;
         if let Some(value) = array.get_index(scope, index_u32) {
-            Ok(sys::v8_from_value(value))
+            Ok(sys::Value::new(value))
         } else {
             // Return undefined for out-of-bounds access
             let undefined = v8::undefined(scope);
-            Ok(sys::v8_from_value(undefined))
+            Ok(sys::Value::new(undefined.into()))
         }
     }
 
@@ -105,7 +107,7 @@ impl JsArray {
 
         let index_u32 = index.try_into().map_err(|_| crate::Error::ValueCastError)?;
         let js_value = T::to_js_value(&self.env, value)?;
-        let v8_value = sys::v8_into_static_value::<v8::Value, v8::Value>(js_value);
+        let v8_value = sys::v8_into_static_value::<v8::Value, v8::Value>(js_value.as_inner());
         array.set_index(scope, index_u32, v8_value);
         Ok(())
     }
@@ -181,7 +183,7 @@ where
         env: &Env,
         val: Self,
     ) -> crate::Result<Value> {
-        Ok(*JsArray::from_vec(env, val)?.value())
+        Ok(JsArray::from_vec(env, val)?.value().clone())
     }
 }
 

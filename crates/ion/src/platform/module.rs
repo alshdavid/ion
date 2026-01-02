@@ -8,8 +8,8 @@ use crate::ResolverContext;
 use crate::TransformerContext;
 use crate::platform::JsRealm;
 use crate::platform::resolve::run_resolvers;
+use crate::platform::sys;
 use crate::utils::PathExt;
-use crate::utils::v8::v8_create_string;
 
 #[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord)]
 pub enum ModuleStatus {
@@ -36,8 +36,8 @@ impl Module {
 
         let scope = &mut env.scope();
 
-        let v8_name = v8_create_string(scope, name.as_ref())?;
-        let v8_source = v8_create_string(scope, source.as_ref())?;
+        let v8_name = sys::v8_create_string(scope, name.as_ref())?;
+        let v8_source = sys::v8_create_string(scope, source.as_ref())?;
 
         let origin = v8::ScriptOrigin::new(
             scope,
@@ -231,9 +231,14 @@ impl Module {
         _import_attributes: v8::Local<'a, v8::FixedArray>,
         referrer: v8::Local<'a, v8::Module>,
     ) -> Option<v8::Local<'a, v8::Module>> {
-        let scope = &mut unsafe { v8::CallbackScope::new(context) };
+        v8::callback_scope!(unsafe scope, context);
 
-        let realm = JsRealm::v8_revive(scope);
+        let global_this = context.global(scope);
+        let data_key = v8::String::new(scope, "__data").unwrap();
+        let data = global_this.get(scope, data_key.into()).unwrap();
+        let data = data.cast::<v8::External>();
+        let realm = unsafe { &mut *(data.value() as *mut JsRealm) };
+
         let specifier = specifier.to_rust_string_lossy(scope);
         let referrer_module = realm
             .module_map()
@@ -258,8 +263,14 @@ pub(crate) unsafe extern "C" fn init_meta_callback(
     module: v8::Local<v8::Module>,
     meta: v8::Local<v8::Object>,
 ) {
-    let scope = &mut unsafe { v8::CallbackScope::new(context) };
-    let realm = JsRealm::v8_revive(scope);
+    v8::callback_scope!(unsafe scope, context);
+
+    let global_this = context.global(scope);
+    let data_key = v8::String::new(scope, "__data").unwrap();
+    let data = global_this.get(scope, data_key.into()).unwrap();
+    let data = data.cast::<v8::External>();
+    let realm = unsafe { &mut *(data.value() as *mut JsRealm) };
+
     let env = realm.env();
 
     // Extensions

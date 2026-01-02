@@ -34,7 +34,7 @@ pub trait ToJsUnknown: Sized + JsValue {
     fn into_unknown(self) -> JsUnknown {
         JsUnknown {
             env: self.env().clone(),
-            value: *self.value(),
+            value: self.value().clone(),
         }
     }
 }

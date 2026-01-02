@@ -18,7 +18,7 @@ impl JsObject {
         let scope = &mut env.scope();
         let object = v8::Object::new(scope);
         Ok(Self {
-            value: sys::v8_from_value(object),
+            value: sys::Value::new(object.into()),
             env: env.clone(),
         })
     }

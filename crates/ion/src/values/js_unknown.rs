@@ -1,7 +1,7 @@
 use crate::Env;
 use crate::ToJsUnknown;
+use crate::platform::sys;
 use crate::platform::sys::Value;
-use crate::utils::v8::v8_create_undefined;
 use crate::values::FromJsValue;
 use crate::values::JsValue;
 use crate::values::ToJsValue;
@@ -68,8 +68,9 @@ impl ToJsValue for () {
         env: &Env,
         _val: Self,
     ) -> crate::Result<Value> {
-        let scope = &mut env.scope();
-        let local = v8_create_undefined(scope)?;
-        Ok(local)
+        let context = env.context.as_local();
+        v8::callback_scope!(unsafe scope, context);
+        let local = v8::undefined(scope);
+        Ok(sys::Value::new(local.into()))
     }
 }
