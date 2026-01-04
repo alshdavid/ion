@@ -12,7 +12,7 @@ use crate::JsResolver;
 use crate::JsTransformer;
 use crate::fs::FileSystem;
 use crate::platform::background_worker::BackgroundTaskManager;
-use crate::platform::finalizer_registry::FinalizerRegistery;
+use crate::platform::finalizer_registry::FinalizerRegistry;
 use crate::platform::module_map::ModuleMap;
 use crate::platform::sys;
 use crate::platform::worker::JsWorkerEvent;
@@ -27,7 +27,7 @@ pub struct JsRealm {
     pub(crate) id: usize,
     pub(crate) env: Box<Env>,
     pub(crate) background_task_manager: Arc<BackgroundTaskManager>,
-    pub(crate) finalizer_registry: FinalizerRegistery,
+    pub(crate) finalizer_registry: FinalizerRegistry,
     /// Used to tell the Worker if there are any long-lived async tasks
     /// that should prevent the context from being shutdown
     pub(crate) global_refs: RefCounter,
@@ -51,7 +51,7 @@ impl JsRealm {
 
         let global_refs = RefCounter::new(0);
         let shutdown_requested = Rc::new(RefCell::new(false));
-        let finalizer_registry = FinalizerRegistery::new(isolate);
+        let finalizer_registry = FinalizerRegistry::new(isolate);
 
         // TODO make these RefCells
         let modules: ModuleMap = ModuleMap::default();

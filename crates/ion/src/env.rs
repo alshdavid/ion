@@ -12,7 +12,7 @@ use crate::JsObject;
 use crate::ToJsValue;
 use crate::platform::JsRealm;
 use crate::platform::background_worker::BackgroundTaskManager;
-use crate::platform::finalizer_registry::FinalizerRegistery;
+use crate::platform::finalizer_registry::FinalizerRegistry;
 use crate::platform::module::Module;
 use crate::platform::sys;
 use crate::platform::worker::JsWorkerEvent;
@@ -29,7 +29,7 @@ pub struct Env {
     pub(crate) global_refs: RefCounter,
     pub(crate) shutdown_requested: Rc<RefCell<bool>>,
     pub(crate) tx: Sender<JsWorkerEvent>,
-    pub(crate) finalizer_registry: FinalizerRegistery,
+    pub(crate) finalizer_registry: FinalizerRegistry,
     pub(crate) global_this: sys::GlobalThis,
 }
 
@@ -42,7 +42,7 @@ impl Env {
         global_refs: RefCounter,
         shutdown_requested: Rc<RefCell<bool>>,
         tx: Sender<JsWorkerEvent>,
-        finalizer_registry: FinalizerRegistery,
+        finalizer_registry: FinalizerRegistry,
         global_this: sys::GlobalThis,
     ) -> Box<Self> {
         let mut env = Box::new(Env {

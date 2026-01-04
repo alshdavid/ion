@@ -3,13 +3,13 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 #[derive(Clone)]
-pub struct FinalizerRegistery {
+pub struct FinalizerRegistry {
     #[allow(clippy::type_complexity)]
     callbacks: Rc<RefCell<HashMap<usize, (v8::Weak<v8::Value>, Box<dyn FnOnce()>)>>>,
     isolate: *mut v8::Isolate,
 }
 
-impl FinalizerRegistery {
+impl FinalizerRegistry {
     pub fn new(isolate: *mut v8::Isolate) -> Self {
         Self {
             callbacks: Default::default(),
