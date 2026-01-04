@@ -20,7 +20,7 @@ impl JsNumber {
         let scope = &mut env.scope();
 
         let local = v8::Integer::new_from_unsigned(scope, val);
-        let value = sys::Value::new(local.into());
+        let value = sys::v8_from_value(local);
         Ok(Self {
             value,
             env: env.clone(),
@@ -34,7 +34,7 @@ impl JsNumber {
         let scope = &mut env.scope();
 
         let local = v8::Integer::new(scope, val);
-        let value = sys::Value::new(local.into());
+        let value = sys::v8_from_value(local);
         Ok(Self {
             value,
             env: env.clone(),
@@ -47,7 +47,7 @@ impl JsNumber {
     ) -> crate::Result<Self> {
         let scope = &mut env.scope();
         let local = v8::Number::new(scope, val);
-        let value = sys::Value::new(local.into());
+        let value = sys::v8_from_value(local);
         Ok(Self {
             value,
             env: env.clone(),
@@ -116,7 +116,7 @@ impl ToJsValue for i32 {
         env: &Env,
         val: Self,
     ) -> crate::Result<Value> {
-        Ok(JsNumber::from_i32(env, val)?.value().clone())
+        Ok(*JsNumber::from_i32(env, val)?.value())
     }
 }
 
@@ -125,7 +125,7 @@ impl ToJsValue for u32 {
         env: &Env,
         val: Self,
     ) -> crate::Result<Value> {
-        Ok(JsNumber::from_u32(env, val)?.value().clone())
+        Ok(*JsNumber::from_u32(env, val)?.value())
     }
 }
 

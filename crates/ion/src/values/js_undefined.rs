@@ -14,9 +14,8 @@ pub struct JsUndefined {
 
 impl JsUndefined {
     pub fn new(env: &Env) -> crate::Result<Self> {
-        let context = env.context.as_local();
-        v8::callback_scope!(unsafe scope, context);
-        JsUndefined::from_js_value(env, sys::Value::new(v8::undefined(scope).into()))
+        let scope = &mut env.scope();
+        JsUndefined::from_js_value(env, sys::v8_from_value(v8::undefined(scope)))
     }
 
     /// # SAFETY

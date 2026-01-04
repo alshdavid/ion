@@ -15,11 +15,11 @@ pub trait JsObjectValue: JsValue {
         let env = self.env();
         let scope = &mut env.scope();
 
-        let key = key.value();
-        let value = value.value();
-        let object = self.value().as_inner().cast::<v8::Object>();
+        let key = *key.value();
+        let value = *value.value();
+        let object = self.value().cast::<v8::Object>();
 
-        object.set(scope, key.as_inner(), value.as_inner());
+        object.set(scope, key, value);
         Ok(())
     }
 
@@ -35,16 +35,11 @@ pub trait JsObjectValue: JsValue {
         let env = self.env();
         let scope = &mut env.scope();
 
-        let Some(key) = v8::String::new(scope, name) else {
-            return Err(crate::Error::ValueCreateError);
-        };
+        let key = crate::utils::v8::v8_create_string(scope, name)?;
         let value = T::to_js_value(env, value)?;
+        let object = self.value().cast::<v8::Object>();
 
-        let Ok(object) = self.value().as_inner().try_cast::<v8::Object>() else {
-            return Err(crate::Error::ValueCastError);
-        };
-
-        object.set(scope, key.into(), value.as_inner());
+        object.set(scope, key.into(), value);
 
         Ok(())
     }
@@ -70,16 +65,14 @@ pub trait JsObjectValue: JsValue {
         let env = self.env();
         let scope = &mut env.scope();
 
-        let object = self.value().as_inner().cast::<v8::Object>();
+        let object = self.value().cast::<v8::Object>();
 
-        let Some(key) = v8::String::new(scope, name) else {
-            return Err(crate::Error::ValueCreateError);
-        };
+        let key = crate::utils::v8::v8_create_string(scope, name)?;
         let Some(result) = object.get(scope, key.into()) else {
             return Ok(None);
         };
 
-        Ok(Some(T::from_js_value(env, sys::Value::new(result))?))
+        Ok(Some(T::from_js_value(env, result)?))
     }
 
     /// Get the property value from the `Object` without validation
@@ -93,9 +86,7 @@ pub trait JsObjectValue: JsValue {
         let env = self.env();
         let scope = &mut env.scope();
 
-        let Some(key) = v8::String::new(scope, name) else {
-            return Err(crate::Error::ValueCreateError);
-        };
+        let key = crate::utils::v8::v8_create_string(scope, name)?;
 
         let object_value = self.value();
         let object_raw = object_value;
@@ -105,7 +96,7 @@ pub trait JsObjectValue: JsValue {
             return Err(crate::Error::ValueGetError);
         };
 
-        T::from_js_value(env, sys::Value::new(result))
+        T::from_js_value(env, result)
     }
 
     /// Check if the `Object` has the named property
@@ -127,9 +118,10 @@ pub trait JsObjectValue: JsValue {
         let env = self.env();
         let scope = &mut env.scope();
 
-        let object = self.value().as_inner().cast::<v8::Object>();
+        let object_value = self.value();
+        let object = sys::v8_into_static_value::<v8::Object, _>(*object_value);
 
-        object.delete(scope, name.value().as_inner());
+        object.delete(scope, *name.value());
         Ok(true)
     }
 
@@ -141,10 +133,8 @@ pub trait JsObjectValue: JsValue {
         let env = self.env();
         let scope = &mut env.scope();
 
-        let Some(key) = v8::String::new(scope, name.as_ref()) else {
-            return Err(crate::Error::ValueCreateError);
-        };
-        let object = self.value().as_inner().cast::<v8::Object>();
+        let key = crate::utils::v8::v8_create_string(scope, name)?;
+        let object = self.value().cast::<v8::Object>();
 
         object.delete(scope, key.into());
         Ok(true)
@@ -197,7 +187,7 @@ pub trait JsObjectValue: JsValue {
         let env = self.env();
         let scope = &mut env.scope();
 
-        let object = self.value().as_inner().cast::<v8::Object>();
+        let object = self.value().cast::<v8::Object>();
 
         // Get own property names (enumerable and non-enumerable, excluding symbols)
         let property_names = object.get_own_property_names(
@@ -217,7 +207,7 @@ pub trait JsObjectValue: JsValue {
 
         // Convert V8 array to our JsObject
         Ok(crate::values::JsObject {
-            value: sys::Value::new(names_array.cast::<v8::Value>()),
+            value: sys::v8_from_value(names_array),
             env: env.clone(),
         })
     }
@@ -264,10 +254,10 @@ pub trait JsObjectValue: JsValue {
         let env = self.env();
         let scope = &mut env.scope();
 
-        let object = self.value().as_inner().cast::<v8::Object>();
+        let object = self.value().cast::<v8::Object>();
         let index_key = v8::Integer::new(scope, index as i32);
 
-        object.set(scope, index_key.into(), value.value().as_inner());
+        object.set(scope, index_key.into(), *value.value());
         Ok(())
     }
 
@@ -300,9 +290,9 @@ pub trait JsObjectValue: JsValue {
         let env = self.env();
         let scope = &mut env.scope();
 
-        let object = self.value().as_inner().cast::<v8::Array>();
+        let object = self.value().cast::<v8::Array>();
         match object.get_index(scope, index) {
-            Some(value) => Ok(Some(T::from_js_value(env, sys::Value::new(value))?)),
+            Some(value) => Ok(Some(T::from_js_value(env, value)?)),
             None => Ok(None),
         }
     }
@@ -316,13 +306,13 @@ pub trait JsObjectValue: JsValue {
     ///
     /// if `Object` is not array, `ArrayExpected` error returned
     fn get_array_length(&self) -> crate::Result<u32> {
-        let object = self.value().as_inner().cast::<v8::Array>();
+        let object = self.value().cast::<v8::Array>();
         Ok(object.length())
     }
 
     /// use this API if you can ensure this `Object` is `Array`
     fn get_array_length_unchecked(&self) -> crate::Result<u32> {
-        let object = sys::v8_value_cast::<v8::Array, _>(self.value().as_inner());
+        let object = sys::v8_value_cast::<v8::Array, _>(*self.value());
         Ok(object.length())
     }
 

@@ -22,12 +22,9 @@ impl JsString {
         text: impl AsRef<str>,
     ) -> crate::Result<Self> {
         let scope = &mut env.scope();
-
-        let Some(string) = v8::String::new(scope, text.as_ref()) else {
-            return Err(crate::Error::ValueCreateError);
-        };
+        let string = crate::utils::v8::v8_create_string(scope, text.as_ref())?;
         Ok(Self {
-            value: sys::Value::new(string.into()),
+            value: sys::v8_from_value(string),
             env: env.clone(),
         })
     }
@@ -80,7 +77,7 @@ impl ToJsValue for String {
         env: &Env,
         val: Self,
     ) -> crate::Result<Value> {
-        Ok(JsString::new(env, val)?.value().clone())
+        Ok(*JsString::new(env, val)?.value())
     }
 }
 
@@ -89,7 +86,7 @@ impl ToJsValue for &str {
         env: &Env,
         val: Self,
     ) -> crate::Result<Value> {
-        Ok(JsString::new(env, val)?.value().clone())
+        Ok(*JsString::new(env, val)?.value())
     }
 }
 
@@ -98,7 +95,7 @@ impl ToJsValue for Rc<str> {
         env: &Env,
         val: Self,
     ) -> crate::Result<Value> {
-        Ok(JsString::new(env, val)?.value().clone())
+        Ok(*JsString::new(env, val)?.value())
     }
 }
 
@@ -107,7 +104,7 @@ impl ToJsValue for Arc<str> {
         env: &Env,
         val: Self,
     ) -> crate::Result<Value> {
-        Ok(JsString::new(env, val)?.value().clone())
+        Ok(*JsString::new(env, val)?.value())
     }
 }
 

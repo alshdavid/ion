@@ -1,6 +1,3 @@
-// [TODO] Replace with built-in v8 promise creation
-// This is a security issue
-
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -10,6 +7,7 @@ use crate::JsUnknown;
 use crate::ToJsUnknown;
 use crate::platform::sys;
 use crate::platform::sys::Value;
+use crate::utils::v8::v8_create_string;
 use crate::values::FromJsValue;
 use crate::values::JsValue;
 use crate::values::ToJsValue;
@@ -25,7 +23,7 @@ impl JsPromise {
         let scope = &mut env.scope();
         let object = v8::Object::new(scope);
         Ok(Self {
-            value: sys::Value::new(object.into()),
+            value: sys::v8_from_value(object),
             env: env.clone(),
         })
     }
@@ -56,12 +54,10 @@ impl JsPromise {
         let scope = &mut self.env.scope();
 
         // Promise
-        let promise = sys::v8_value_cast::<v8::Object, _>(self.value.as_inner());
+        let promise = sys::v8_value_cast::<v8::Object, _>(self.value);
 
         // Promise.then
-        let Some(then_key) = v8::String::new(scope, "then") else {
-            return Err(crate::Error::ValueCreateError);
-        };
+        let then_key = v8_create_string(scope, "then")?;
         let Some(then) = promise.get(scope, sys::v8_value_cast::<v8::Value, _>(then_key)) else {
             return Err(crate::Error::ValueGetError);
         };
@@ -75,16 +71,14 @@ impl JsPromise {
                     settled_callback.take().unwrap()
                 };
                 let result = ctx.arg::<JsUnknown>(0)?;
-                let result = Resolved::from_js_value(env, result.value().clone())?;
+                let result = Resolved::from_js_value(env, *result.value())?;
                 let result = JsPromiseResult::<Resolved>::Resolved(result);
                 settled_callback(env, result)
             }
         })?;
 
         // Promise.catch
-        let Some(catch_key) = v8::String::new(scope, "catch") else {
-            return Err(crate::Error::ValueCreateError);
-        };
+        let catch_key = v8_create_string(scope, "catch")?;
         let Some(catch) = promise.get(scope, sys::v8_value_cast::<v8::Value, _>(catch_key)) else {
             return Err(crate::Error::ValueGetError);
         };
@@ -102,13 +96,13 @@ impl JsPromise {
 
         // Call Promise.then & Promise.catch
         if then_fn
-            .call(scope, promise.into(), &[then_fn_recv.value.as_inner()])
+            .call(scope, promise.into(), &[then_fn_recv.value])
             .is_none()
         {
             return Err(crate::Error::FunctionCallError);
         };
         if catch_fn
-            .call(scope, promise.into(), &[catch_fn_recv.value.as_inner()])
+            .call(scope, promise.into(), &[catch_fn_recv.value])
             .is_none()
         {
             return Err(crate::Error::FunctionCallError);

@@ -24,26 +24,26 @@ pub struct Env {
     pub(crate) inner: *mut Env,
     pub(crate) realm_id: usize,
     pub(crate) isolate: *mut v8::Isolate,
-    pub(crate) context: sys::GlobalContext,
+    pub(crate) context: sys::__v8_context,
+    pub(crate) global_this: sys::__v8_global_this,
     pub(crate) background_task_manager: Arc<BackgroundTaskManager>,
     pub(crate) global_refs: RefCounter,
     pub(crate) shutdown_requested: Rc<RefCell<bool>>,
     pub(crate) tx: Sender<JsWorkerEvent>,
     pub(crate) finalizer_registry: FinalizerRegistry,
-    pub(crate) global_this: sys::GlobalThis,
 }
 
 impl Env {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         isolate: *mut v8::Isolate,
-        context: sys::GlobalContext,
+        context: sys::__v8_context,
+        global_this: sys::__v8_global_this,
         background_task_manager: Arc<BackgroundTaskManager>,
         global_refs: RefCounter,
         shutdown_requested: Rc<RefCell<bool>>,
         tx: Sender<JsWorkerEvent>,
         finalizer_registry: FinalizerRegistry,
-        global_this: sys::GlobalThis,
     ) -> Box<Self> {
         let mut env = Box::new(Env {
             realm_id: 0,
@@ -118,16 +118,17 @@ impl Env {
     }
 
     pub fn global_this(&self) -> crate::Result<JsObject> {
-        let global_this = sys::Value::new(self.global_this.as_local().into());
-        JsObject::from_js_value(self, global_this)
+        let v = sys::v8_get_global_this(self.global_this);
+        JsObject::from_js_value(self, sys::v8_from_value(v))
     }
 
     pub fn context(&self) -> v8::Local<'static, v8::Context> {
-        self.context.as_local()
+        sys::v8_get_context(self.context)
     }
 
-    pub fn scope(&self) -> sys::RootScope {
-        self.context.scope()
+    pub fn scope(&self) -> v8::CallbackScope<'static> {
+        let context = sys::v8_get_context(self.context);
+        unsafe { v8::CallbackScope::new(context) }
     }
 
     pub fn spawn_background(
@@ -156,7 +157,7 @@ impl Env {
             panic!();
         };
 
-        Return::from_js_value(self, sys::Value::new(value))
+        Return::from_js_value(self, sys::v8_from_value(value))
     }
 
     pub fn eval_script<Return: FromJsValue>(
@@ -177,7 +178,7 @@ impl Env {
             panic!();
         };
 
-        Return::from_js_value(self, sys::Value::new(value))
+        Return::from_js_value(self, sys::v8_from_value(value))
     }
 
     pub fn eval_module(
@@ -185,14 +186,15 @@ impl Env {
         code: impl AsRef<str>,
     ) -> crate::Result<JsObject> {
         // TODO cache a module based on its content hash otherwise it will leak
-        let realm = JsRealm::v8_revive(self);
+        let scope = &mut self.scope();
+        let realm = JsRealm::v8_revive(scope);
 
         let module = Module::new(realm, hash_sha256(code.as_ref().as_bytes()), code.as_ref())?;
 
         let v8_module = Module::v8_run_module(true, realm, module.name.clone(), module)?;
         let v8_module = v8_module.get_module_namespace().cast::<v8::Object>();
 
-        JsObject::from_js_value(self, sys::Value::new(v8_module.into()))
+        JsObject::from_js_value(self, sys::v8_from_value(v8_module))
     }
 
     /// Load a file and evaluate it
@@ -215,7 +217,7 @@ impl Env {
     ) -> crate::Result<()> {
         let scope = &mut self.scope();
         let js_value = T::to_js_value(self, value)?;
-        let v8_value = sys::v8_into_static_value::<v8::Value, v8::Value>(js_value.as_inner());
+        let v8_value = sys::v8_into_static_value::<v8::Value, v8::Value>(js_value);
         sys::v8_throw_exception(scope, v8_value);
         Ok(())
     }

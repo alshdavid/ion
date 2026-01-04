@@ -17,12 +17,10 @@ impl JsBoolean {
         env: &Env,
         val: bool,
     ) -> crate::Result<Self> {
-        let context = env.context.as_local();
-        v8::callback_scope!(unsafe scope, context);
-
+        let scope = &mut env.scope();
         let boolean = v8::Boolean::new(scope, val);
         Ok(Self {
-            value: sys::Value::new(boolean.into()),
+            value: sys::v8_from_value(boolean),
             env: env.clone(),
         })
     }
@@ -73,7 +71,7 @@ impl ToJsValue for bool {
         env: &Env,
         val: Self,
     ) -> crate::Result<Value> {
-        Ok(JsBoolean::new(env, val)?.value().clone())
+        Ok(*JsBoolean::new(env, val)?.value())
     }
 }
 

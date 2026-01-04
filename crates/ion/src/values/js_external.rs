@@ -49,7 +49,7 @@ impl<T> JsExternal<T> {
         });
 
         Ok(Self {
-            value: sys::Value::new(value.into()),
+            value: sys::v8_from_value(value),
             env: env.clone(),
             data: external_data,
             ref_count,
@@ -67,7 +67,7 @@ impl<T> Clone for JsExternal<T> {
     fn clone(&self) -> Self {
         self.ref_count.inc();
         Self {
-            value: self.value.clone(),
+            value: self.value,
             env: self.env.clone(),
             data: self.data,
             ref_count: self.ref_count.clone(),
@@ -126,7 +126,7 @@ impl<T> ToJsValue for JsExternal<T> {
         _env: &Env,
         val: Self,
     ) -> crate::Result<Value> {
-        Ok(val.value.clone())
+        Ok(val.value)
     }
 }
 

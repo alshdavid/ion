@@ -14,9 +14,8 @@ pub struct JsNull {
 
 impl JsNull {
     pub fn new(env: &Env) -> crate::Result<Self> {
-        let context = env.context.as_local();
-        v8::callback_scope!(unsafe scope, context);
-        JsNull::from_js_value(env, sys::Value::new(v8::null(scope).into()))
+        let scope = &mut env.scope();
+        JsNull::from_js_value(env, sys::v8_from_value(v8::null(scope)))
     }
 
     /// # SAFETY
