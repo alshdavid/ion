@@ -22,5 +22,19 @@ pub fn main() -> anyhow::Result<()> {
         Ok(())
     })?;
 
+    // ctx.exec_blocking(|env| {
+    //     // Evaluate arbitrary JavaScript, the result of the last line is returned
+    //     let value = env.eval_script::<JsNumber>("1 + 1")?;
+
+    //     // Cast to Rust type
+    //     let result = value.get_u32()?;
+
+    //     println!("Returned: {}", result);
+    //     Ok(())
+    // })?;
+
+    worker.join_blocking()?;
+    println!("Fin");
+
     Ok(())
 }

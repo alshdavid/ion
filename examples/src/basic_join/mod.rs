@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use ion::*;
 
 pub fn main() -> anyhow::Result<()> {
@@ -11,22 +13,31 @@ pub fn main() -> anyhow::Result<()> {
     let ctx = worker.create_context()?;
 
     // Execute some JavaScript in the context
-    ctx.exec_blocking(|env| {
-        // Evaluate arbitrary JavaScript, the result of the last line is returned
-        let value = env.eval_script::<JsNumber>("1 + 1")?;
+    ctx.exec(|env| {
+        env.inc_ref();
+        println!("Async Start");
 
-        // Cast to Rust type
-        let result = value.get_u32()?;
-
-        println!("Returned: {}", result);
+        env.spawn_background({
+            let env = env.as_async();
+            async move {
+                tokio::time::sleep(Duration::from_millis(1000)).await;
+                env.exec_async(|env| {
+                    env.dec_ref();
+                    println!("Async Done");
+                    Ok(())
+                })
+                .await
+            }
+        })?;
         Ok(())
     })?;
 
     // Wait for context to complete
-    ctx.join_blocking()?;
+    // ctx.join_blocking()?;
 
     // Wait for all contexts within worker to complete
     worker.join_blocking()?;
+    println!("Fin");
 
     Ok(())
 }

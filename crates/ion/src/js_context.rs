@@ -86,22 +86,11 @@ impl JsContext {
 
     /// Wait for the context to complete all activity
     pub fn join_blocking(&self) -> crate::Result<()> {
-        Ok(())
-    }
-
-    /// Wait for the context to complete all activity
-    pub async fn join_async(&self) -> crate::Result<()> {
-        Ok(())
-    }
-}
-
-impl Drop for JsContext {
-    fn drop(&mut self) {
         let (tx, rx) = oneshot();
 
         if self
             .tx
-            .send(JsWorkerEvent::RequestContextShutdown {
+            .send(JsWorkerEvent::RegisterContextShutdownListener {
                 id: self.id,
                 resolve: Some(tx),
             })
@@ -113,5 +102,12 @@ impl Drop for JsContext {
         if rx.recv().is_err() {
             panic!("Cannot drop JsContext 2")
         }
+        
+        Ok(())
+    }
+
+    /// Wait for the context to complete all activity
+    pub async fn join_async(&self) -> crate::Result<()> {
+        Ok(())
     }
 }

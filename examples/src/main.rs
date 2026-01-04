@@ -1,4 +1,4 @@
-#![deny(unused_crate_dependencies)]
+// #![deny(unused_crate_dependencies)]
 mod _utils;
 mod background_tasks;
 mod basic;
@@ -8,7 +8,7 @@ mod custom_resolver;
 mod deferred;
 mod eval;
 mod external_value;
-mod http_server;
+// mod http_server;
 mod memory_usage_context;
 mod memory_usage_external_value;
 mod memory_usage_module;
@@ -40,7 +40,7 @@ fn main() -> anyhow::Result<()> {
         "custom_resolver" => custom_resolver::main(),
         "deferred" => deferred::main(),
         "eval" => eval::main(),
-        "http_server" => http_server::main(),
+        // "http_server" => http_server::main(),
         "promise" => promise::main(),
         "run" => run::main(),
         "set_interval" => set_interval::main(),

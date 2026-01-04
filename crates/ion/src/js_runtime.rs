@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use std::sync::OnceLock;
+use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 
 use flume::Sender;
@@ -12,6 +13,7 @@ use crate::JsResolver;
 use crate::JsTransformer;
 use crate::JsWorker;
 use crate::JsWorkerOptions;
+use crate::platform::callback_registry::CallbackRegistry;
 use crate::platform::platform::HAS_INIT;
 use crate::platform::platform::PLATFORM;
 
@@ -173,12 +175,14 @@ impl JsRuntime {
     pub fn spawn_worker(
         &self,
         options: JsWorkerOptions,
-    ) -> crate::Result<Arc<JsWorker>> {
+    ) -> crate::Result<JsWorker> {
         let (tx, rx) = bounded(1);
-
+        let callback_registry =  Arc::new(CallbackRegistry::default());
+        
         if self
             .tx
             .send(PlatformEvent::SpawnWorker {
+                callback_registry: Arc::clone(&callback_registry),
                 extensions: options.extensions,
                 transformers: options.transformers,
                 resolvers: options.resolvers,
@@ -193,7 +197,7 @@ impl JsRuntime {
             return Err(Error::WorkerInitializeError);
         };
 
-        Ok(Arc::new(JsWorker::new(tx, handle)))
+        Ok(JsWorker::new(callback_registry, tx, Arc::new(handle)))
     }
 }
 

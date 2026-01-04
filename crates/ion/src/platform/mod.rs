@@ -9,5 +9,6 @@ mod realm;
 pub mod resolve;
 pub(crate) mod sys;
 pub(crate) mod worker;
+pub(crate) mod callback_registry;
 
 pub(crate) use realm::*;

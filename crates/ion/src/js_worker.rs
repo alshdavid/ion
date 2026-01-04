@@ -1,5 +1,7 @@
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
 use std::thread::JoinHandle;
 
 use flume::Sender;
@@ -10,6 +12,7 @@ use crate::Error;
 use crate::JsExtension;
 use crate::JsResolver;
 use crate::JsTransformer;
+use crate::platform::callback_registry::CallbackRegistry;
 use crate::platform::worker::JsWorkerEvent;
 use crate::utils::channel::oneshot;
 
@@ -30,16 +33,18 @@ pub struct JsWorkerOptions {
 /// to be used to execute JavaScript
 #[derive(Debug)]
 pub struct JsWorker {
+    callback_registry: Arc<CallbackRegistry>,
     tx: Sender<JsWorkerEvent>,
-    handle: Mutex<Option<JoinHandle<crate::Result<()>>>>,
+    handle: Arc<Mutex<Option<JoinHandle<crate::Result<()>>>>>,
 }
 
 impl JsWorker {
     pub(crate) fn new(
+        callback_registry: Arc<CallbackRegistry>,
         tx: Sender<JsWorkerEvent>,
-        handle: Mutex<Option<JoinHandle<crate::Result<()>>>>,
+        handle: Arc<Mutex<Option<JoinHandle<crate::Result<()>>>>>,
     ) -> Self {
-        JsWorker { tx, handle }
+        JsWorker { tx, handle, callback_registry }
     }
 
     /// Create a handle to a v8::Context associated with this v8::Isolate
@@ -76,38 +81,53 @@ impl JsWorker {
     }
 
     /// Wait for all of the contexts within the worker to complete all activity
-    pub fn join_blocking(&self) -> crate::Result<()> {
+    pub fn join_blocking(self) -> crate::Result<()> {
+        let (tx, rx) = oneshot();
+
+        eprintln!("1");
+
+        self.callback_registry.worker_shutdown.lock().push(Box::new(move || {
+            tx.send(()).unwrap();
+        }));
+
+        eprintln!("2");
+        
+        if rx.recv().is_err() {
+            panic!("Cannot drop JsWorker 2");
+        }
+
+        eprintln!("3");
+        let Ok(mut handle) = self.handle.lock() else {
+            panic!("Cannot drop JsWorker 3");
+        };
+        
+
+        eprintln!("4");
+
+        if let Some(handle) = handle.take() {
+            drop(handle.join().unwrap());
+        }
+
+        eprintln!("5");
+
+
         Ok(())
     }
 
     /// Wait for all of the contexts within the worker to complete all activity
-    pub async fn join_async(&self) -> crate::Result<()> {
+    pub async fn join_async(self) -> crate::Result<()> {
         Ok(())
     }
 }
 
 impl Drop for JsWorker {
     fn drop(&mut self) {
-        let (tx, rx) = oneshot();
-
         if self
             .tx
-            .send(JsWorkerEvent::RequestShutdown { resolve: tx })
+            .send(JsWorkerEvent::WorkerHandleDropped)
             .is_err()
         {
-            panic!("Cannot drop JsWorker 1");
+            // panic!("Cannot drop JsWorker 1");
         };
-
-        if rx.recv().is_err() {
-            panic!("Cannot drop JsWorker 2");
-        }
-
-        let Ok(mut handle) = self.handle.lock() else {
-            panic!("Cannot drop JsWorker 3");
-        };
-
-        if let Some(handle) = handle.take() {
-            drop(handle.join().unwrap());
-        }
     }
 }
