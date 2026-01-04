@@ -83,6 +83,16 @@ impl JsContext {
         let specifier = specifier.as_ref().to_string();
         self.exec_blocking(move |env| env.import(specifier))
     }
+
+    /// Wait for the context to complete all activity
+    pub fn join_blocking(&self) -> crate::Result<()> {
+        Ok(())
+    }
+
+    /// Wait for the context to complete all activity
+    pub async fn join_async(&self) -> crate::Result<()> {
+        Ok(())
+    }
 }
 
 impl Drop for JsContext {

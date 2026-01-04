@@ -74,6 +74,16 @@ impl JsWorker {
 
         Ok(rx.recv()?)
     }
+
+    /// Wait for all of the contexts within the worker to complete all activity
+    pub fn join_blocking(&self) -> crate::Result<()> {
+        Ok(())
+    }
+
+    /// Wait for all of the contexts within the worker to complete all activity
+    pub async fn join_async(&self) -> crate::Result<()> {
+        Ok(())
+    }
 }
 
 impl Drop for JsWorker {

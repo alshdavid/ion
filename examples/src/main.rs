@@ -24,6 +24,7 @@ mod thread_safe_function;
 mod thread_safe_promise;
 mod transformers;
 mod typescript;
+mod basic_join;
 
 fn main() -> anyhow::Result<()> {
     let example = std::env::args()
@@ -34,6 +35,7 @@ fn main() -> anyhow::Result<()> {
 
     match example.as_str() {
         "basic" => basic::main(),
+        "basic_join" => basic_join::main(),
         "custom_extension" => custom_extension::main(),
         "custom_resolver" => custom_resolver::main(),
         "deferred" => deferred::main(),
