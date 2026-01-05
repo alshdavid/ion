@@ -33,6 +33,7 @@ pub struct JsRealm {
     pub(crate) modules: ModuleMap,
     pub(crate) global_this: sys::GlobalThis,
     pub(crate) context_shutdown_sig: CompleteSignal,
+    pub(crate) tx: Sender<JsWorkerEvent>,
 }
 
 impl JsRealm {
@@ -76,6 +77,7 @@ impl JsRealm {
             finalizer_registry,
             global_this,
             context_shutdown_sig,
+            tx,
         });
 
         let realm_ptr = realm.as_mut() as *mut JsRealm;
@@ -113,11 +115,13 @@ impl JsRealm {
         &self,
         fut: impl 'static + Send + Sync + Future<Output = crate::Result<()>>,
     ) -> crate::Result<()> {
+        let tx = self.tx.clone();
+        let id = self.id;
         self.background_task_manager.spawn(async move {
             if let Err(_error) = fut.await {
                 todo!("Missing global error handler")
             };
-            Ok(())
+            Ok(tx.try_send(JsWorkerEvent::BackgroundTaskComplete { id })?)
         })
     }
 
@@ -127,7 +131,7 @@ impl JsRealm {
     ) -> crate::Result<Return> {
         let (tx, rx) = oneshot();
         self.background_task_manager.spawn(async move {
-            tx.try_send(fut.await).unwrap();
+            tx.try_send(fut.await).expect("Unable to resolve");
             Ok(())
         })?;
         rx.recv()?
