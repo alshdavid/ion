@@ -63,6 +63,9 @@ pub fn main() -> anyhow::Result<()> {
         "should_wait_for_code_to_finish_worker_blocking" => should_wait_for_code_to_finish_worker_blocking(runtime),
         "should_wait_for_code_to_finish_context" => should_wait_for_code_to_finish_context(runtime),
         "should_wait_for_code_to_finish_context_blocking" => should_wait_for_code_to_finish_context_blocking(runtime),
+        "should_wait_for_code_to_finish_contexts" => should_wait_for_code_to_finish_contexts(runtime),
+        "should_wait_for_code_to_finish_contexts_blocking" => should_wait_for_code_to_finish_contexts_blocking(runtime),
+        "should_not_run_code_after_joining" => should_not_run_code_after_joining(runtime),
         _ => panic!("No Case Selected"),
     }?;
 
@@ -80,7 +83,7 @@ fn non_blocking_exec(context: usize) -> Box<dyn Send + Fn(&Env) -> ion::Result<(
 
             async move {
                 Report::print(Some(context), Some(true), "start");
-                tokio::time::sleep(Duration::from_millis(1000)).await;
+                tokio::time::sleep(Duration::from_millis(100)).await;
                 Report::print(Some(context), Some(true), "end");
 
                 env.exec_async(move |env| {
@@ -212,5 +215,50 @@ fn should_wait_for_code_to_finish_context_blocking(runtime: Arc<JsRuntime>) -> a
 
     c0.join_blocking()?;
 
+    Ok(())
+}
+
+fn should_wait_for_code_to_finish_contexts(runtime: Arc<JsRuntime>) -> anyhow::Result<()> {
+    let w0 = runtime.spawn_worker(JsWorkerOptions::default())?;
+
+    let c0 = w0.create_context()?;
+    let c1 = w0.create_context()?;
+
+    c0.exec(non_blocking_exec(0))?;
+    c1.exec(non_blocking_exec(0))?;
+
+    c0.join_blocking()?;
+    c1.join_blocking()?;
+
+    Ok(())
+}
+
+fn should_wait_for_code_to_finish_contexts_blocking(runtime: Arc<JsRuntime>) -> anyhow::Result<()> {
+    let w0 = runtime.spawn_worker(JsWorkerOptions::default())?;
+
+    let c0 = w0.create_context()?;
+    let c1 = w0.create_context()?;
+
+    c0.exec_blocking(non_blocking_exec(0))?;
+    c1.exec_blocking(non_blocking_exec(1))?;
+
+    c0.join_blocking()?;
+    c1.join_blocking()?;
+
+    Ok(())
+}
+
+fn should_not_run_code_after_joining(runtime: Arc<JsRuntime>) -> anyhow::Result<()> {
+    let w0 = runtime.spawn_worker(JsWorkerOptions::default())?;
+    let c0 = w0.create_context()?;
+
+    c0.exec_blocking(non_blocking_exec(0))?;
+
+    w0.join_blocking()?;
+
+    if c0.exec_blocking(non_blocking_exec(0)).is_err() {
+        Report::print(None, None, "did_not_run");
+    };
+ 
     Ok(())
 }

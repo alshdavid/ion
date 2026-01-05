@@ -18,12 +18,14 @@ use crate::JsResolver;
 use crate::JsTransformer;
 use crate::fs::FileSystem;
 use crate::platform::background_worker::BackgroundTaskManager;
-use crate::platform::callback_registry::CallbackRegistry;
+use crate::platform::worker_handle_state::WorkerHandleState;
 use crate::utils::HashMapExt;
 use crate::utils::PathExt;
+use crate::utils::complete_signal::CompleteSignal;
 
 pub(crate) enum JsWorkerEvent {
     CreateContext {
+        context_shutdown_sig: CompleteSignal,
         resolve: Sender<(usize, Sender<JsWorkerEvent>)>,
     },
     Exec {
@@ -35,10 +37,6 @@ pub(crate) enum JsWorkerEvent {
     Import {
         id: usize,
         specifier: String,
-    },
-    TryShutdownContext {
-        id: usize,
-        force: bool,
     },
     RunGarbageCollectionForTesting {
         resolve: Sender<()>,
@@ -56,7 +54,8 @@ pub(crate) enum JsWorkerEvent {
 // Create a dedicated thread to host the isolate
 #[allow(clippy::type_complexity)]
 pub(crate) fn start_js_worker_thread(
-    callback_registry: Arc<CallbackRegistry>,
+    worker_shutdown_sig: CompleteSignal,
+    worker_handle_state: Arc<WorkerHandleState>,
     background_task_manager: Arc<BackgroundTaskManager>,
     extensions: Vec<Arc<JsExtension>>,
     resolvers: Vec<JsResolver>,
@@ -72,7 +71,8 @@ pub(crate) fn start_js_worker_thread(
         let tx: Sender<JsWorkerEvent> = tx.clone();
         move || {
             worker_thread(
-                callback_registry,
+                worker_shutdown_sig.clone(),
+                worker_handle_state,
                 tx,
                 rx,
                 background_task_manager,
@@ -87,7 +87,8 @@ pub(crate) fn start_js_worker_thread(
 }
 
 fn worker_thread(
-    callback_registry: Arc<CallbackRegistry>,
+    worker_shutdown_sig: CompleteSignal,
+    worker_handle_state: Arc<WorkerHandleState>,
     tx: Sender<JsWorkerEvent>,
     rx: Receiver<JsWorkerEvent>,
     background_task_manager: Arc<BackgroundTaskManager>,
@@ -105,14 +106,10 @@ fn worker_thread(
     let mut realms = HashMap::<usize, Box<JsRealm>>::new();
 
     while let Ok(event) = rx.recv() {
-        // eprintln!("{:?}", event);
-
-        if realms.len() == 0 && !callback_registry.worker_handle_active() {
-            break;
-        }
+        // println!("  {:?}", event);
 
         match event {
-            JsWorkerEvent::CreateContext { resolve } => {
+            JsWorkerEvent::CreateContext { resolve, context_shutdown_sig } => {
                 let realm = JsRealm::new(
                     isolate_ptr,
                     fs.clone(),
@@ -120,6 +117,7 @@ fn worker_thread(
                     transformers.clone(),
                     background_task_manager.clone(),
                     tx.clone(),
+                    context_shutdown_sig,
                 );
                 let realm_id = realm.id();
 
@@ -137,8 +135,19 @@ fn worker_thread(
                     panic!("Callback errored {:?}", err)
                 };
 
-                tx.try_send(JsWorkerEvent::TryShutdownContext { id, force: false })
-                    .unwrap();
+                if realm.global_refs.count() != 0 {
+                    continue;
+                }
+
+                let Some(realm) = realms.remove(&id) else {
+                    continue;
+                };
+
+                let finalizer_registry = realm.finalizer_registry;
+                finalizer_registry.clear();
+                drop(finalizer_registry);
+
+                realm.context_shutdown_sig.done();
             }
             JsWorkerEvent::Import { id, specifier } => {
                 Module::v8_initialize(
@@ -162,46 +171,38 @@ fn worker_thread(
                     finalizer_registry.clear();
                     drop(finalizer_registry);
 
-                    for shutdown_callback in callback_registry
-                        .take_context_shutdown_callbacks(id.clone())
-                        .into_iter()
-                    {
-                        shutdown_callback();
-                    }
+                    realm.context_shutdown_sig.done();
                 }
 
                 break;
             }
             JsWorkerEvent::WorkerHandleDeactivated => {
-                for id in realms.keys() {
-                    tx.try_send(JsWorkerEvent::TryShutdownContext {
-                        id: id.clone(),
-                        force: true,
-                    })
-                    .unwrap();
+                let mut to_drop = vec![];
+
+                for (id, realm) in realms.iter() {
+                    if realm.global_refs.count() != 0 {
+                        continue;
+                    }
+                    to_drop.push(id.clone());
+                }
+
+                for id in to_drop {
+                    let Some(realm) = realms.remove(&id) else {
+                        continue;
+                    };
+
+                    let finalizer_registry = realm.finalizer_registry;
+                    finalizer_registry.clear();
+                    drop(finalizer_registry);
+
+                    realm.context_shutdown_sig.done();
                 }
             }
             JsWorkerEvent::ContextHandleDeactivated { id } => {
-                tx.try_send(JsWorkerEvent::TryShutdownContext {
-                    id: id.clone(),
-                    force: false,
-                })
-                .unwrap();
-            }
-            JsWorkerEvent::ContextHandleDropped { id } => {
-                tx.try_send(JsWorkerEvent::TryShutdownContext {
-                    id: id.clone(),
-                    force: true,
-                })
-                .unwrap();
-            }
-            JsWorkerEvent::TryShutdownContext { id, force } => {
-                // If there are async tasks pending then wait for them to complete
-                if !force && realms.try_get_mut(&id)?.global_refs.count() != 0 {
+                if realms.try_get_mut(&id)?.global_refs.count() != 0 {
                     continue;
                 }
 
-                // If there are no async tasks then shutdown the context
                 let Some(realm) = realms.remove(&id) else {
                     continue;
                 };
@@ -210,22 +211,27 @@ fn worker_thread(
                 finalizer_registry.clear();
                 drop(finalizer_registry);
 
-                for shutdown_callback in callback_registry
-                    .take_context_shutdown_callbacks(id.clone())
-                    .into_iter()
-                {
-                    shutdown_callback();
-                }
+                realm.context_shutdown_sig.done();
             }
+            JsWorkerEvent::ContextHandleDropped { id } => {
+                let Some(realm) = realms.remove(&id) else {
+                    continue;
+                };
+
+                let finalizer_registry = realm.finalizer_registry;
+                finalizer_registry.clear();
+                drop(finalizer_registry);
+
+                realm.context_shutdown_sig.done();
+            }
+        }
+
+        if realms.len() == 0 && !worker_handle_state.worker_handle_active() {
+            break;
         }
     }
 
-    for shutdown_callback in callback_registry
-        .take_worker_shutdown_callbacks()
-        .into_iter()
-    {
-        shutdown_callback();
-    }
+    worker_shutdown_sig.done();
 
     Ok(())
 }
@@ -238,10 +244,9 @@ impl std::fmt::Debug for JsWorkerEvent {
         f: &mut std::fmt::Formatter<'_>,
     ) -> std::fmt::Result {
         match self {
-            Self::CreateContext { resolve } =>         write!(f, "CreateContext"),
+            Self::CreateContext { resolve, context_shutdown_sig } =>         write!(f, "CreateContext"),
             Self::Exec { id, callback, span } =>    write!(f, "Exec                     [id={}]", id),
             Self::Import { id, specifier } =>                                  write!(f, "Import"),
-            Self::TryShutdownContext { id, force } =>                            write!(f, "TryShutdownContext       [id={} force={}]", id, force),
             Self::WorkerHandleDropped =>                                                        write!(f, "WorkerHandleDropped"),
             Self::WorkerHandleDeactivated =>                                                    write!(f, "WorkerHandleDeactivated"),
             Self::ContextHandleDropped { id } =>                                        write!(f, "ContextHandleDropped"),

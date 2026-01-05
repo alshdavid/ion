@@ -6,16 +6,17 @@ use flume::bounded;
 use crate::Env;
 use crate::Error;
 use crate::JsUnknown;
-use crate::platform::callback_registry::CallbackRegistry;
+use crate::platform::worker_handle_state::WorkerHandleState;
 use crate::platform::worker::JsWorkerEvent;
-use crate::utils::channel::oneshot;
+use crate::utils::complete_signal::CompleteSignal;
 
 /// This is a handle to a v8::Context
 #[derive(Debug, Clone)]
 pub struct JsContext {
-    pub(crate) callback_registry: Arc<CallbackRegistry>,
+    pub(crate) worker_handle_state: Arc<WorkerHandleState>,
     pub(crate) id: usize,
     pub(crate) tx: Sender<JsWorkerEvent>,
+    pub(crate) context_shutdown_sig: CompleteSignal,
 }
 
 impl JsContext {
@@ -90,37 +91,33 @@ impl JsContext {
 
     /// Wait for the context to complete all activity
     pub fn join_blocking(self) -> crate::Result<()> {
-        if !self.callback_registry.worker_handle_active() {
-            return Ok(());
+        if !self.worker_handle_state.worker_handle_active() {
+            return Err(crate::Error::WorkerAlreadyShutdown);
         }
 
-        self.callback_registry
-            .context_handle_set_status(&self.id, false);
-
-        let (tx, rx) = oneshot();
-        self.callback_registry
-            .add_context_shutdown_callback(self.id.clone(), move || tx.try_send(()).unwrap());
-
-        drop(self.tx.send(JsWorkerEvent::ContextHandleDeactivated {
-            id: self.id.clone(),
-        }));
-
-        if rx.recv().is_err() {
-            panic!("Cannot drop JsContext 2")
+        if self
+            .tx
+            .send(JsWorkerEvent::ContextHandleDeactivated {
+                id: self.id.clone(),
+            })
+            .is_err()
+        {
+            return Err(crate::Error::ContextAlreadyShutdown);
         }
+
+        self.context_shutdown_sig.wait();
 
         Ok(())
     }
 
     /// Wait for the context to complete all activity
     pub async fn join_async(&self) -> crate::Result<()> {
-        self.callback_registry
-            .context_handle_set_status(&self.id, false);
         self.tx
             .send(JsWorkerEvent::ContextHandleDropped {
                 id: self.id.clone(),
             })
             .unwrap();
+        
         Ok(())
     }
 }

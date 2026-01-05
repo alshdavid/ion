@@ -12,9 +12,10 @@ use crate::JsResolver;
 use crate::JsTransformer;
 use crate::JsWorker;
 use crate::JsWorkerOptions;
-use crate::platform::callback_registry::CallbackRegistry;
+use crate::platform::worker_handle_state::WorkerHandleState;
 use crate::platform::platform::HAS_INIT;
 use crate::platform::platform::PLATFORM;
+use crate::utils::complete_signal::CompleteSignal;
 
 static JS_RUNTIME: OnceLock<crate::Result<Arc<JsRuntime>>> = OnceLock::new();
 
@@ -175,13 +176,16 @@ impl JsRuntime {
         &self,
         options: JsWorkerOptions,
     ) -> crate::Result<JsWorker> {
+        let worker_handle_state = Arc::new(WorkerHandleState::default());
+        let worker_shutdown_sig = CompleteSignal::default();
+
         let (tx, rx) = bounded(1);
-        let callback_registry = Arc::new(CallbackRegistry::default());
 
         if self
             .tx
             .send(PlatformEvent::SpawnWorker {
-                callback_registry: Arc::clone(&callback_registry),
+                worker_shutdown_sig: worker_shutdown_sig.clone(),
+                worker_handle_state: Arc::clone(&worker_handle_state),
                 extensions: options.extensions,
                 transformers: options.transformers,
                 resolvers: options.resolvers,
@@ -196,7 +200,12 @@ impl JsRuntime {
             return Err(Error::WorkerInitializeError);
         };
 
-        Ok(JsWorker::new(callback_registry, tx, Arc::new(handle)))
+        Ok(JsWorker::new(
+            worker_handle_state,
+            tx,
+            Arc::new(handle),
+            worker_shutdown_sig,
+        ))
     }
 }
 
