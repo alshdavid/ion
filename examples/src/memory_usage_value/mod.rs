@@ -12,8 +12,8 @@ pub fn main() -> anyhow::Result<()> {
     let worker = runtime.spawn_worker(JsWorkerOptions::default())?;
     let ctx = worker.create_context()?;
 
-    for _ in 0..200 {
-        for _ in 0..3000 {
+    for _ in 0..100 {
+        for _ in 0..2000 {
             let _value = ctx.exec_blocking(|env| {
                 let value = env.eval_script::<JsNumber>("1 + 1")?;
                 value.get_u32()

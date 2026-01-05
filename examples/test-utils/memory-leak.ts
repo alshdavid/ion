@@ -148,6 +148,9 @@ export function assertMemoryLastQuarterGrowth(
     report: MemoryUsageReport,
     kilobytes: number,
 ) {
+    if (report.overAllMemoryTrendPerSample >= kilobytes) {
+        console.table(report);
+    }
     assertLessOrEqual(
         report.overAllMemoryTrendPerSample,
         kilobytes,
