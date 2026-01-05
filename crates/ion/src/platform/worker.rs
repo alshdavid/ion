@@ -138,6 +138,12 @@ fn worker_thread(
                     panic!("Callback errored {:?}", err)
                 };
 
+                if worker_handle_state.worker_handle_active()
+                    && worker_handle_state.context_handle_active(&id)
+                {
+                    continue;
+                }
+
                 if realm.global_refs.count() != 0 {
                     continue;
                 }
@@ -229,7 +235,7 @@ fn worker_thread(
             }
         }
 
-        if realms.len() == 0 && !worker_handle_state.worker_handle_active() {
+        if !worker_handle_state.worker_handle_active() && realms.len() == 0 {
             break;
         }
     }

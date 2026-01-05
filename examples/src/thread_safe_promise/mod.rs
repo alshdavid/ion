@@ -47,5 +47,6 @@ pub fn main() -> anyhow::Result<()> {
 
     println!("[Rust] Got {}", result);
 
+    ctx.join()?;
     Ok(())
 }

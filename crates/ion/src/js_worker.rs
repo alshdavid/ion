@@ -73,6 +73,9 @@ impl JsWorker {
             return Err(Error::WorkerInitializeError);
         };
 
+        self.worker_handle_state
+            .context_handle_set_status(&id, true);
+
         Ok(JsContext {
             id,
             tx,

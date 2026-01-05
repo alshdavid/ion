@@ -3,13 +3,14 @@ use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 
 use parking_lot::Mutex;
+use parking_lot::RwLock;
 
 pub type WorkerShutdownCallback = Box<dyn Send + Sync + FnOnce()>;
 pub type ContextShutdownCallback = Box<dyn Send + Sync + FnOnce()>;
 
 pub struct WorkerHandleState {
     pub(crate) worker_handle_active: AtomicBool,
-    // pub (crate) context_handle_active: RwLock<HashMap<usize, bool>>,
+    pub(crate) context_handle_active: RwLock<HashMap<usize, bool>>,
     pub(crate) worker_shutdown: Mutex<Vec<WorkerShutdownCallback>>,
     pub(crate) context_shutdown: Mutex<HashMap<usize, Vec<ContextShutdownCallback>>>,
 }
@@ -18,7 +19,7 @@ impl Default for WorkerHandleState {
     fn default() -> Self {
         Self {
             worker_handle_active: AtomicBool::new(true),
-            // context_handle_active: Default::default(),
+            context_handle_active: Default::default(),
             worker_shutdown: Default::default(),
             context_shutdown: Default::default(),
         }
@@ -34,26 +35,26 @@ impl WorkerHandleState {
         self.worker_handle_active.swap(false, Ordering::Relaxed);
     }
 
-    // pub(crate) fn context_handle_active(
-    //     &self,
-    //     id: &usize,
-    // ) -> bool {
-    //     self.context_handle_active
-    //         .read()
-    //         .get(id)
-    //         .unwrap_or(&false)
-    //         .clone()
-    // }
+    pub(crate) fn context_handle_active(
+        &self,
+        id: &usize,
+    ) -> bool {
+        self.context_handle_active
+            .read()
+            .get(id)
+            .unwrap_or(&false)
+            .clone()
+    }
 
-    // pub(crate) fn context_handle_set_status(
-    //     &self,
-    //     id: &usize,
-    //     status: bool,
-    // ) {
-    //     self.context_handle_active
-    //         .write()
-    //         .insert(id.clone(), status);
-    // }
+    pub(crate) fn context_handle_set_status(
+        &self,
+        id: &usize,
+        status: bool,
+    ) {
+        self.context_handle_active
+            .write()
+            .insert(id.clone(), status);
+    }
 
     // pub(crate) fn add_worker_shutdown_callback(
     //     &self,
