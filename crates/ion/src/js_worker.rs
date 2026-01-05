@@ -10,8 +10,8 @@ use crate::Error;
 use crate::JsExtension;
 use crate::JsResolver;
 use crate::JsTransformer;
-use crate::platform::worker_handle_state::WorkerHandleState;
 use crate::platform::worker::JsWorkerEvent;
+use crate::platform::worker_handle_state::WorkerHandleState;
 use crate::utils::complete_signal::CompleteSignal;
 
 #[derive(Default)]
@@ -25,7 +25,6 @@ pub struct JsWorkerOptions {
     /// Extensions that will be available to all [`crate::JsWorker`] and [`crate::JsContext`] instances
     pub extensions: Vec<JsExtension>,
 }
-
 
 /// This is a handle to a v8::Isolate running on a dedicated thread.
 /// A worker thread can spawn multiple v8::Contexts within that thread
@@ -56,12 +55,15 @@ impl JsWorker {
     /// Create a handle to a v8::Context associated with this v8::Isolate
     pub fn create_context(&self) -> crate::Result<JsContext> {
         let context_shutdown_sig = CompleteSignal::default();
-        
+
         let (tx, rx) = bounded(1);
 
         if self
             .tx
-            .send(JsWorkerEvent::CreateContext { resolve: tx, context_shutdown_sig: context_shutdown_sig.clone() })
+            .send(JsWorkerEvent::CreateContext {
+                resolve: tx,
+                context_shutdown_sig: context_shutdown_sig.clone(),
+            })
             .is_err()
         {
             return Err(Error::WorkerInitializeError);
@@ -94,7 +96,7 @@ impl JsWorker {
     }
 
     /// Wait for all of the contexts within the worker to complete all activity
-    pub fn join_blocking(self) -> crate::Result<()> {
+    pub fn join(self) -> crate::Result<()> {
         self.worker_handle_state.worker_handle_deactivate();
         self.tx
             .send(JsWorkerEvent::WorkerHandleDeactivated)
@@ -115,6 +117,21 @@ impl JsWorker {
 
     /// Wait for all of the contexts within the worker to complete all activity
     pub async fn join_async(self) -> crate::Result<()> {
+        self.worker_handle_state.worker_handle_deactivate();
+        self.tx
+            .send(JsWorkerEvent::WorkerHandleDeactivated)
+            .unwrap();
+
+        self.worker_shutdown_sig.wait_async().await;
+
+        let Ok(mut handle) = self.handle.lock() else {
+            panic!("Cannot drop JsWorker 3");
+        };
+
+        if let Some(handle) = handle.take() {
+            drop(handle.join().unwrap());
+        }
+
         Ok(())
     }
 }

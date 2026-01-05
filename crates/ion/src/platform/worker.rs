@@ -109,7 +109,10 @@ fn worker_thread(
         // println!("  {:?}", event);
 
         match event {
-            JsWorkerEvent::CreateContext { resolve, context_shutdown_sig } => {
+            JsWorkerEvent::CreateContext {
+                resolve,
+                context_shutdown_sig,
+            } => {
                 let realm = JsRealm::new(
                     isolate_ptr,
                     fs.clone(),

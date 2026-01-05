@@ -12,9 +12,9 @@ use crate::JsResolver;
 use crate::JsTransformer;
 use crate::JsWorker;
 use crate::JsWorkerOptions;
-use crate::platform::worker_handle_state::WorkerHandleState;
 use crate::platform::platform::HAS_INIT;
 use crate::platform::platform::PLATFORM;
+use crate::platform::worker_handle_state::WorkerHandleState;
 use crate::utils::complete_signal::CompleteSignal;
 
 static JS_RUNTIME: OnceLock<crate::Result<Arc<JsRuntime>>> = OnceLock::new();

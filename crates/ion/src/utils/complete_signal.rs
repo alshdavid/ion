@@ -1,4 +1,7 @@
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::Arc;
+use std::sync::Condvar;
+use std::sync::Mutex;
+
 use tokio::sync::Notify;
 
 #[derive(Clone, Default)]
@@ -11,8 +14,7 @@ impl std::fmt::Debug for CompleteSignal {
         &self,
         f: &mut std::fmt::Formatter<'_>,
     ) -> std::fmt::Result {
-        f.debug_struct("CompleteSignal")
-            .finish()
+        f.debug_struct("CompleteSignal").finish()
     }
 }
 
@@ -80,9 +82,10 @@ impl CompleteSignal {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::thread;
     use std::time::Duration;
+
+    use super::*;
 
     #[tokio::test]
     async fn test_complete_signal() {
