@@ -6,7 +6,7 @@ export async function executeExample(testName: string, args: string[] = [], env:
     const command = new Deno.Command(Paths["~/"]("target", "debug", binName), {
         args: [testName, ...args],
         stdout: "piped",
-        stderr: "piped",
+        stderr: "inherit",
         cwd: Paths["~"],
         env: {
             ...Deno.env.toObject(),
@@ -14,12 +14,11 @@ export async function executeExample(testName: string, args: string[] = [], env:
         }
     });
 
-    const { code, stdout, stderr } = await command.output();
+    const { code, stdout } = await command.output();
 
     if (code !== 0) {
-        const errorText = new TextDecoder().decode(stderr);
         throw new Error(
-            `Test '${testName}' failed with exit code ${code}:\n${errorText}`
+            `Test '${testName}' failed with exit code ${code}:\n`
         );
     }
 
