@@ -143,8 +143,8 @@ fn should_wait_for_code_to_finish(runtime: Arc<JsRuntime>) -> anyhow::Result<()>
 
     c0.exec(non_blocking_exec(0))?;
 
-    c0.join_blocking()?;
-    w0.join_blocking()?;
+    c0.join()?;
+    w0.join()?;
 
     Ok(())
 }
@@ -156,8 +156,8 @@ fn should_wait_for_code_to_finish_multiple(runtime: Arc<JsRuntime>) -> anyhow::R
     c0.exec(non_blocking_exec(0))?;
     c0.exec(non_blocking_exec(0))?;
 
-    c0.join_blocking()?;
-    w0.join_blocking()?;
+    c0.join()?;
+    w0.join()?;
 
     Ok(())
 }
@@ -168,8 +168,8 @@ fn should_wait_for_code_to_finish_blocking(runtime: Arc<JsRuntime>) -> anyhow::R
 
     c0.exec_blocking(non_blocking_exec(0))?;
 
-    c0.join_blocking()?;
-    w0.join_blocking()?;
+    c0.join()?;
+    w0.join()?;
 
     Ok(())
 }
@@ -180,7 +180,7 @@ fn should_wait_for_code_to_finish_worker(runtime: Arc<JsRuntime>) -> anyhow::Res
 
     c0.exec(non_blocking_exec(0))?;
 
-    w0.join_blocking()?;
+    w0.join()?;
 
     Ok(())
 }
@@ -191,7 +191,7 @@ fn should_wait_for_code_to_finish_worker_blocking(runtime: Arc<JsRuntime>) -> an
 
     c0.exec_blocking(non_blocking_exec(0))?;
 
-    w0.join_blocking()?;
+    w0.join()?;
 
     Ok(())
 }
@@ -202,7 +202,7 @@ fn should_wait_for_code_to_finish_context(runtime: Arc<JsRuntime>) -> anyhow::Re
 
     c0.exec(non_blocking_exec(0))?;
 
-    c0.join_blocking()?;
+    c0.join()?;
 
     Ok(())
 }
@@ -213,7 +213,7 @@ fn should_wait_for_code_to_finish_context_blocking(runtime: Arc<JsRuntime>) -> a
 
     c0.exec_blocking(non_blocking_exec(0))?;
 
-    c0.join_blocking()?;
+    c0.join()?;
 
     Ok(())
 }
@@ -227,8 +227,8 @@ fn should_wait_for_code_to_finish_contexts(runtime: Arc<JsRuntime>) -> anyhow::R
     c0.exec(non_blocking_exec(0))?;
     c1.exec(non_blocking_exec(0))?;
 
-    c0.join_blocking()?;
-    c1.join_blocking()?;
+    c0.join()?;
+    c1.join()?;
 
     Ok(())
 }
@@ -242,8 +242,8 @@ fn should_wait_for_code_to_finish_contexts_blocking(runtime: Arc<JsRuntime>) -> 
     c0.exec_blocking(non_blocking_exec(0))?;
     c1.exec_blocking(non_blocking_exec(1))?;
 
-    c0.join_blocking()?;
-    c1.join_blocking()?;
+    c0.join()?;
+    c1.join()?;
 
     Ok(())
 }
@@ -254,11 +254,11 @@ fn should_not_run_code_after_joining(runtime: Arc<JsRuntime>) -> anyhow::Result<
 
     c0.exec_blocking(non_blocking_exec(0))?;
 
-    w0.join_blocking()?;
+    w0.join()?;
 
     if c0.exec_blocking(non_blocking_exec(0)).is_err() {
         Report::print(None, None, "did_not_run");
     };
- 
+
     Ok(())
 }

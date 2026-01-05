@@ -8,10 +8,10 @@ pub type WorkerShutdownCallback = Box<dyn Send + Sync + FnOnce()>;
 pub type ContextShutdownCallback = Box<dyn Send + Sync + FnOnce()>;
 
 pub struct WorkerHandleState {
-    pub (crate) worker_handle_active: AtomicBool,
+    pub(crate) worker_handle_active: AtomicBool,
     // pub (crate) context_handle_active: RwLock<HashMap<usize, bool>>,
-    pub (crate) worker_shutdown: Mutex<Vec<WorkerShutdownCallback>>,
-    pub (crate) context_shutdown: Mutex<HashMap<usize, Vec<ContextShutdownCallback>>>,
+    pub(crate) worker_shutdown: Mutex<Vec<WorkerShutdownCallback>>,
+    pub(crate) context_shutdown: Mutex<HashMap<usize, Vec<ContextShutdownCallback>>>,
 }
 
 impl Default for WorkerHandleState {

@@ -6,8 +6,8 @@ use flume::bounded;
 use crate::Env;
 use crate::Error;
 use crate::JsUnknown;
-use crate::platform::worker_handle_state::WorkerHandleState;
 use crate::platform::worker::JsWorkerEvent;
+use crate::platform::worker_handle_state::WorkerHandleState;
 use crate::utils::complete_signal::CompleteSignal;
 
 /// This is a handle to a v8::Context
@@ -90,7 +90,7 @@ impl JsContext {
     }
 
     /// Wait for the context to complete all activity
-    pub fn join_blocking(self) -> crate::Result<()> {
+    pub fn join(self) -> crate::Result<()> {
         if !self.worker_handle_state.worker_handle_active() {
             return Err(crate::Error::WorkerAlreadyShutdown);
         }
@@ -112,12 +112,31 @@ impl JsContext {
 
     /// Wait for the context to complete all activity
     pub async fn join_async(&self) -> crate::Result<()> {
-        self.tx
-            .send(JsWorkerEvent::ContextHandleDropped {
+        if !self.worker_handle_state.worker_handle_active() {
+            return Err(crate::Error::WorkerAlreadyShutdown);
+        }
+
+        if self
+            .tx
+            .send(JsWorkerEvent::ContextHandleDeactivated {
                 id: self.id.clone(),
             })
-            .unwrap();
-        
+            .is_err()
+        {
+            return Err(crate::Error::ContextAlreadyShutdown);
+        }
+
+        self.context_shutdown_sig.wait_async().await;
+
         Ok(())
+    }
+}
+
+impl Drop for JsContext {
+    fn drop(&mut self) {
+        drop(
+            self.tx
+                .try_send(JsWorkerEvent::ContextHandleDropped { id: self.id }),
+        );
     }
 }

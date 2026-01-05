@@ -1,4 +1,5 @@
 pub mod channel;
+pub mod complete_signal;
 pub mod debug;
 pub mod hash;
 pub mod hash_map_ext;
@@ -8,7 +9,6 @@ pub mod random_string;
 pub mod ref_counter;
 pub mod ref_counter_atomic;
 pub mod tokio_ext;
-pub mod complete_signal;
 
 pub use debug::*;
 pub use hash::*;

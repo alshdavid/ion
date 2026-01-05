@@ -14,9 +14,9 @@ use crate::JsExtension;
 use crate::JsResolver;
 use crate::JsTransformer;
 use crate::platform::background_worker::BackgroundTaskManager;
-use crate::platform::worker_handle_state::WorkerHandleState;
 use crate::platform::worker::JsWorkerEvent;
 use crate::platform::worker::start_js_worker_thread;
+use crate::platform::worker_handle_state::WorkerHandleState;
 use crate::utils::complete_signal::CompleteSignal;
 
 pub(crate) enum PlatformEvent {

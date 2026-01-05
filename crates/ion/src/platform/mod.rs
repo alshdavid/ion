@@ -1,6 +1,5 @@
 #![allow(clippy::module_inception)]
 pub mod background_worker;
-pub(crate) mod worker_handle_state;
 pub(crate) mod extension;
 pub(crate) mod finalizer_registry;
 pub mod module;
@@ -10,5 +9,6 @@ mod realm;
 pub mod resolve;
 pub(crate) mod sys;
 pub(crate) mod worker;
+pub(crate) mod worker_handle_state;
 
 pub(crate) use realm::*;
