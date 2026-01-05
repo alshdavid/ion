@@ -5,13 +5,8 @@ use parking_lot::Mutex;
 
 use crate::Env;
 use crate::FromJsValue;
-use crate::JsFunction;
 use crate::JsObject;
-use crate::JsObjectValue;
-use crate::JsUnknown;
-use crate::ThreadSafeFunction;
-use crate::platform::sys::Value;
-use crate::thread_safe_function;
+use crate::platform::sys;
 use crate::utils::channel::oneshot;
 use crate::values::ToJsValue;
 
@@ -24,82 +19,107 @@ pub struct JsDeferred {
     tx: Sender<JsDeferredEvent>,
 }
 
+struct SendableResolver(v8::Global<v8::PromiseResolver>);
+unsafe impl Send for SendableResolver {}
+unsafe impl Sync for SendableResolver {}
+
+impl SendableResolver {
+    fn into_local<'a>(
+        self,
+        scope: &mut v8::PinnedRef<'a, v8::HandleScope<'a, v8::Context>>,
+    ) -> v8::Local<'static, v8::PromiseResolver> {
+        
+        unsafe {
+            std::mem::transmute::<v8::Local<'a, v8::PromiseResolver>, v8::Local<'static, v8::PromiseResolver>>(v8::Local::new(scope, self.0))
+        }
+    }
+}
+
 impl JsDeferred {
     pub fn new(env: &Env) -> crate::Result<(JsObject, JsDeferred)> {
-        let global_this = env.global_this()?;
-        let promise_ctor = global_this.get_named_property_unchecked::<JsFunction>("Promise")?;
+        let scope = &mut env.scope();
+        let isolate = env.isolate();
+
+        env.inc_ref();
+
+        let promise_resolver = v8::PromiseResolver::new(scope).unwrap();
+        let promise = promise_resolver.get_promise(scope);
+        let promise_resolver_global = SendableResolver(v8::Global::new(isolate, promise_resolver));
+
 
         let (tx, rx) = oneshot::<JsDeferredEvent>();
         let rx = Arc::new(Mutex::new(Some(rx)));
 
-        let receiver = JsFunction::new(env, move |env, ctx| {
-            let resolve = ctx.arg::<JsFunction>(0)?;
-            let reject = ctx.arg::<JsFunction>(1)?;
+        env.spawn_background({
+            let rx = rx.clone();
+            let env = env.as_async();
 
-            let resolve = ThreadSafeFunction::new(&resolve)?;
-            let reject = ThreadSafeFunction::new(&reject)?;
-
-            env.spawn_background({
-                let rx = rx.clone();
-                async move {
-                    let rx = {
-                        let mut lock = rx.lock();
-                        let Some(rx) = lock.take() else {
-                            return Err(crate::Error::PromiseResolveError);
-                        };
-                        rx
+            async move {
+                let rx = {
+                    let mut lock = rx.lock();
+                    let Some(rx) = lock.take() else {
+                        return Err(crate::Error::PromiseResolveError);
                     };
-                    match rx.recv_async().await {
-                        Ok(JsDeferredEvent::Resolve(callback)) => {
-                            let callback = Mutex::new(Some(callback));
-                            resolve
-                                .call_async(
-                                    move |env| {
-                                        let mut lock = callback.lock();
-                                        let result = lock.take().unwrap()(env)?;
-                                        JsUnknown::from_js_value(env, result)
-                                    },
-                                    thread_safe_function::map_return::noop,
-                                )
-                                .await
-                        }
-                        Ok(JsDeferredEvent::Reject(callback)) => {
-                            let callback = Mutex::new(Some(callback));
-                            reject
-                                .call_async(
-                                    move |env| {
-                                        let mut lock = callback.lock();
-                                        let result = lock.take().unwrap()(env)?;
-                                        JsUnknown::from_js_value(env, result)
-                                    },
-                                    thread_safe_function::map_return::noop,
-                                )
-                                .await
-                        }
-                        Err(_) => Err(crate::Error::PromiseResolveError),
-                    }
-                }
-            })?;
+                    rx
+                };
 
-            Ok(())
+                match rx.recv_async().await {
+                    Ok(JsDeferredEvent::Resolve(callback)) => {
+                        let callback = Mutex::new(Some(callback));
+
+                        env.exec_async(move |env| {
+                            let scope = &mut env.scope();
+
+                            let promise_resolver_local = promise_resolver_global.into_local(scope);
+
+                            let mut lock = callback.lock();
+                            let result = lock.take().unwrap()(env)?;
+
+                            promise_resolver_local.resolve(scope, result.as_inner());
+                            env.dec_ref();
+                            Ok(())
+                        }).await?;
+                    }
+                    Ok(JsDeferredEvent::Reject(callback)) => {
+                        println!("3.3.1");
+                        todo!()
+                    }
+                    Err(err) => {
+                        println!("3.4.1 {:?}", err);
+                        panic!()
+                    },
+                }
+
+
+                Ok(())
+
+            }
         })?;
 
-        let promise = promise_ctor.new_instance(receiver)?;
-
-        Ok((promise, Self { tx }))
+        Ok((
+            JsObject::from_js_value(env, sys::Value::new(promise.into()))?,
+            Self { tx },
+        ))
     }
 
     pub fn resolve<Return: ToJsValue>(
         &self,
         callback: impl 'static + Send + Sync + FnOnce(&Env) -> crate::Result<Return>,
     ) -> crate::Result<()> {
-        Ok(self
+        let (tx, rx) = oneshot::<()>();
+
+        self
             .tx
             .try_send(JsDeferredEvent::Resolve(Box::new(move |env| {
                 let value = callback(env)?;
                 let value = Return::to_js_value(env, value)?;
+                tx.send(()).unwrap();
                 Ok(value)
-            })))?)
+            })))?;
+
+        rx.recv().unwrap(); 
+
+        Ok(())
     }
 
     pub fn reject<Return: ToJsValue>(
@@ -121,6 +141,6 @@ unsafe impl Sync for JsDeferred {}
 
 #[allow(clippy::type_complexity)]
 enum JsDeferredEvent {
-    Resolve(Box<dyn Send + Sync + FnOnce(&Env) -> crate::Result<Value>>),
-    Reject(Box<dyn Send + Sync + FnOnce(&Env) -> crate::Result<Value>>),
+    Resolve(Box<dyn Send + Sync + FnOnce(&Env) -> crate::Result<sys::Value>>),
+    Reject(Box<dyn Send + Sync + FnOnce(&Env) -> crate::Result<sys::Value>>),
 }

@@ -109,7 +109,7 @@ fn worker_thread(
     let mut realms = HashMap::<usize, Box<JsRealm>>::new();
 
     while let Ok(event) = rx.recv() {
-        // println!("  {:?}", event);
+        println!("  {:?}", event);
 
         match event {
             JsWorkerEvent::CreateContext {
@@ -141,8 +141,7 @@ fn worker_thread(
                     panic!("Callback errored {:?}", err)
                 };
 
-                if worker_handle_state.worker_handle_active()
-                    && worker_handle_state.context_handle_active(&id)
+                if worker_handle_state.context_handle_active(&id)
                 {
                     continue;
                 }
@@ -164,8 +163,7 @@ fn worker_thread(
             JsWorkerEvent::BackgroundTaskComplete { id } => {
                 let realm = realms.try_get(&id)?;
 
-                if worker_handle_state.worker_handle_active()
-                    && worker_handle_state.context_handle_active(&id)
+                if worker_handle_state.context_handle_active(&id)
                 {
                     continue;
                 }

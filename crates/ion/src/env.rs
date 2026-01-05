@@ -116,7 +116,13 @@ impl Env {
         &self,
         fut: impl 'static + Send + Sync + Future<Output = crate::Result<()>>,
     ) -> crate::Result<()> {
-        self.background_task_manager.spawn(fut)
+        let id = self.realm_id;
+        let tx = self.tx.clone();
+        self.background_task_manager.spawn(async move {
+            fut.await?;
+            tx.try_send(JsWorkerEvent::BackgroundTaskComplete { id }).unwrap();
+            Ok(())
+        })
     }
 
     pub fn eval_script_with_origin<Return: FromJsValue>(
