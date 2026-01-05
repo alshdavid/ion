@@ -16,6 +16,7 @@ use crate::platform::sys;
 use crate::platform::worker::JsWorkerEvent;
 use crate::utils::RefCounter;
 use crate::utils::channel::oneshot;
+use crate::utils::complete_signal::CompleteSignal;
 
 // Container that constructs a V8 context and preserves the internals until dropped
 pub struct JsRealm {
@@ -31,6 +32,7 @@ pub struct JsRealm {
     pub(crate) global_refs: RefCounter,
     pub(crate) modules: ModuleMap,
     pub(crate) global_this: sys::GlobalThis,
+    pub(crate) context_shutdown_sig: CompleteSignal,
 }
 
 impl JsRealm {
@@ -41,6 +43,7 @@ impl JsRealm {
         transformers: HashMap<String, Arc<JsTransformer>>,
         background_task_manager: Arc<BackgroundTaskManager>,
         tx: Sender<JsWorkerEvent>,
+        context_shutdown_sig: CompleteSignal,
     ) -> Box<Self> {
         let context = sys::GlobalContext::new(unsafe { &mut *isolate });
         let global_this = sys::GlobalThis::new(&context);
@@ -72,6 +75,7 @@ impl JsRealm {
             global_refs,
             finalizer_registry,
             global_this,
+            context_shutdown_sig,
         });
 
         let realm_ptr = realm.as_mut() as *mut JsRealm;

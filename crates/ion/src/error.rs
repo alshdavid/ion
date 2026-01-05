@@ -13,6 +13,8 @@ pub enum Error {
     PlatformCommunicationError,
     PlatformInitializeError,
     PlatformDisposeError,
+    WorkerAlreadyShutdown,
+    ContextAlreadyShutdown,
     IsolateNotInitializedError,
     EventLoopNotInitializedError,
     WorkerInitializeError,

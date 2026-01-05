@@ -10,9 +10,9 @@ use crate::Error;
 use crate::JsExtension;
 use crate::JsResolver;
 use crate::JsTransformer;
-use crate::platform::callback_registry::CallbackRegistry;
+use crate::platform::worker_handle_state::WorkerHandleState;
 use crate::platform::worker::JsWorkerEvent;
-use crate::utils::channel::oneshot;
+use crate::utils::complete_signal::CompleteSignal;
 
 #[derive(Default)]
 pub struct JsWorkerOptions {
@@ -26,36 +26,42 @@ pub struct JsWorkerOptions {
     pub extensions: Vec<JsExtension>,
 }
 
+
 /// This is a handle to a v8::Isolate running on a dedicated thread.
 /// A worker thread can spawn multiple v8::Contexts within that thread
 /// to be used to execute JavaScript
 #[derive(Debug)]
 pub struct JsWorker {
-    callback_registry: Arc<CallbackRegistry>,
+    worker_handle_state: Arc<WorkerHandleState>,
     tx: Sender<JsWorkerEvent>,
     handle: Arc<Mutex<Option<JoinHandle<crate::Result<()>>>>>,
+    worker_shutdown_sig: CompleteSignal,
 }
 
 impl JsWorker {
     pub(crate) fn new(
-        callback_registry: Arc<CallbackRegistry>,
+        worker_handle_state: Arc<WorkerHandleState>,
         tx: Sender<JsWorkerEvent>,
         handle: Arc<Mutex<Option<JoinHandle<crate::Result<()>>>>>,
+        worker_shutdown_sig: CompleteSignal,
     ) -> Self {
         JsWorker {
             tx,
             handle,
-            callback_registry,
+            worker_handle_state,
+            worker_shutdown_sig,
         }
     }
 
     /// Create a handle to a v8::Context associated with this v8::Isolate
     pub fn create_context(&self) -> crate::Result<JsContext> {
+        let context_shutdown_sig = CompleteSignal::default();
+        
         let (tx, rx) = bounded(1);
 
         if self
             .tx
-            .send(JsWorkerEvent::CreateContext { resolve: tx })
+            .send(JsWorkerEvent::CreateContext { resolve: tx, context_shutdown_sig: context_shutdown_sig.clone() })
             .is_err()
         {
             return Err(Error::WorkerInitializeError);
@@ -65,12 +71,11 @@ impl JsWorker {
             return Err(Error::WorkerInitializeError);
         };
 
-        self.callback_registry.context_handle_set_status(&id, true);
-
         Ok(JsContext {
             id,
             tx,
-            callback_registry: Arc::clone(&self.callback_registry),
+            worker_handle_state: Arc::clone(&self.worker_handle_state),
+            context_shutdown_sig,
         })
     }
 
@@ -90,21 +95,12 @@ impl JsWorker {
 
     /// Wait for all of the contexts within the worker to complete all activity
     pub fn join_blocking(self) -> crate::Result<()> {
-        self.callback_registry.worker_handle_deactivate();
-
-        let (tx, rx) = oneshot();
-        self.callback_registry
-            .add_worker_shutdown_callback(move || {
-                tx.send(()).unwrap();
-            });
-
+        self.worker_handle_state.worker_handle_deactivate();
         self.tx
             .send(JsWorkerEvent::WorkerHandleDeactivated)
             .unwrap();
 
-        if rx.recv().is_err() {
-            panic!("Cannot drop JsWorker 2");
-        }
+        self.worker_shutdown_sig.wait();
 
         let Ok(mut handle) = self.handle.lock() else {
             panic!("Cannot drop JsWorker 3");
@@ -125,7 +121,7 @@ impl JsWorker {
 
 impl Drop for JsWorker {
     fn drop(&mut self) {
-        self.callback_registry.worker_handle_deactivate();
+        self.worker_handle_state.worker_handle_deactivate();
         drop(self.tx.try_send(JsWorkerEvent::WorkerHandleDropped));
     }
 }
