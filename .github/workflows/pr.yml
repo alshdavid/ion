@@ -1,0 +1,94 @@
+name: Pull Request
+
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+on:
+  pull_request:
+    branches:
+      - '*'
+
+env:
+  PROJECT_NAME: ion
+  profile: release
+
+jobs:
+  version:
+    name: 🌐 Auto Version Increment
+    runs-on: ubuntu-24.04
+    outputs:
+      VERSION: ${{ steps.generate.outputs.VERSION }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: generate
+        run: |
+          set -e
+          LAST_VERSION=$(curl -sSL https://api.github.com/repos/alshdavid/$PROJECT_NAME/releases/latest | jq -r ".tag_name" | cut -d "." -f 3)
+          if [ "$LAST_VERSION" = "" ]; then
+            LAST_VERSION="0"
+          fi
+          declare -i var="$LAST_VERSION"
+          var=$var+1
+          VERSION="0.0.$var"
+
+          echo $VERSION
+          echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
+
+  test:
+    name: 🧪 Test
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: eval $(curl -sSf sh.davidalsh.com/rust.sh | sh)
+      - run: cargo test
+
+  test-e2e:
+    name: 🧪 Test E2E
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: eval $(curl -sSf sh.davidalsh.com/rust.sh | sh)
+      - run: eval $(curl -sSf sh.davidalsh.com/deno.sh | sh)
+      - run: cargo build
+      - run: deno cache ./examples/**/*.test.ts
+      - run: ./examples/run-tests-debug
+
+  format:
+    name: 📝 Format
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: eval $(curl -sSf sh.davidalsh.com/rust.sh | sh)
+      - run: cargo install cargo-xfmt
+      - run: cargo --version
+      - run: cargo clippy --version
+      - run: cargo xfmt --check
+      - run: cargo clippy -- --deny "warnings"
+
+  build_linux_amd64:
+    name: 🐥 Linux AMD64
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
+    container:
+      image: debian:12
+      env:
+        DEBIAN_FRONTEND: noninteractive
+    steps:
+      - uses: actions/checkout@v4
+      - run: apt-get update -y && apt-get install -y curl build-essential
+      - run: eval $(curl -sSf sh.davidalsh.com/just.sh | sh)
+      - run: eval $(curl -sSf sh.davidalsh.com/rust.sh | sh)
+      - run: just build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ion-linux-amd64
+          path: ${{ github.workspace }}/target/linux-amd64/release/**/*
+          if-no-files-found: error
+          retention-days: 1
