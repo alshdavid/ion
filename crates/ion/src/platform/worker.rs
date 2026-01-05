@@ -18,19 +18,15 @@ use crate::JsResolver;
 use crate::JsTransformer;
 use crate::fs::FileSystem;
 use crate::platform::background_worker::BackgroundTaskManager;
+use crate::platform::worker_handle_state::WorkerHandleState;
 use crate::utils::HashMapExt;
 use crate::utils::PathExt;
+use crate::utils::complete_signal::CompleteSignal;
 
 pub(crate) enum JsWorkerEvent {
     CreateContext {
+        context_shutdown_sig: CompleteSignal,
         resolve: Sender<(usize, Sender<JsWorkerEvent>)>,
-    },
-    BackgroundTaskComplete {
-        id: usize,
-    },
-    RequestContextShutdown {
-        resolve: Option<Sender<()>>,
-        id: usize,
     },
     Exec {
         id: usize,
@@ -42,17 +38,27 @@ pub(crate) enum JsWorkerEvent {
         id: usize,
         specifier: String,
     },
-    RequestShutdown {
-        resolve: Sender<()>,
-    },
     RunGarbageCollectionForTesting {
         resolve: Sender<()>,
+    },
+    WorkerHandleDropped,
+    WorkerHandleDeactivated,
+    ContextHandleDropped {
+        id: usize,
+    },
+    ContextHandleDeactivated {
+        id: usize,
+    },
+    BackgroundTaskComplete {
+        id: usize,
     },
 }
 
 // Create a dedicated thread to host the isolate
 #[allow(clippy::type_complexity)]
 pub(crate) fn start_js_worker_thread(
+    worker_shutdown_sig: CompleteSignal,
+    worker_handle_state: Arc<WorkerHandleState>,
     background_task_manager: Arc<BackgroundTaskManager>,
     extensions: Vec<Arc<JsExtension>>,
     resolvers: Vec<JsResolver>,
@@ -68,6 +74,8 @@ pub(crate) fn start_js_worker_thread(
         let tx: Sender<JsWorkerEvent> = tx.clone();
         move || {
             worker_thread(
+                worker_shutdown_sig.clone(),
+                worker_handle_state,
                 tx,
                 rx,
                 background_task_manager,
@@ -82,6 +90,8 @@ pub(crate) fn start_js_worker_thread(
 }
 
 fn worker_thread(
+    worker_shutdown_sig: CompleteSignal,
+    worker_handle_state: Arc<WorkerHandleState>,
     tx: Sender<JsWorkerEvent>,
     rx: Receiver<JsWorkerEvent>,
     background_task_manager: Arc<BackgroundTaskManager>,
@@ -98,15 +108,14 @@ fn worker_thread(
     // Maintain a store of Global<Context> to help with cleanup on shutdown.
     let mut realms = HashMap::<usize, Box<JsRealm>>::new();
 
-    // Cleanup hooks
-    let mut shutdown_context_senders = HashMap::<usize, Vec<Sender<()>>>::new();
-    let mut shutdown_senders = Vec::<Sender<()>>::new();
-    let mut shutdown_requested = false;
-
     while let Ok(event) = rx.recv() {
-        // println!("{:?} {:?}", active_context, event);
+        // println!("  {:?}", event);
+
         match event {
-            JsWorkerEvent::CreateContext { resolve } => {
+            JsWorkerEvent::CreateContext {
+                resolve,
+                context_shutdown_sig,
+            } => {
                 let realm = JsRealm::new(
                     isolate_ptr,
                     fs.clone(),
@@ -114,6 +123,7 @@ fn worker_thread(
                     transformers.clone(),
                     background_task_manager.clone(),
                     tx.clone(),
+                    context_shutdown_sig,
                 );
                 let realm_id = realm.id();
 
@@ -121,45 +131,6 @@ fn worker_thread(
 
                 realms.insert(realm_id, realm);
                 resolve.try_send((realm_id, tx.clone()))?;
-            }
-            JsWorkerEvent::RequestContextShutdown { id, resolve } => {
-                // Store shutdown resolvers for when the context is closed
-                if let Some(resolve) = resolve {
-                    shutdown_context_senders
-                        .entry(id)
-                        .or_default()
-                        .push(resolve);
-                }
-
-                // If there are async tasks pending then wait for them to complete
-                {
-                    let realm = realms.try_get_mut(&id)?;
-                    let mut realm_shutdown_requested = realm.shutdown_requested.borrow_mut();
-                    (*realm_shutdown_requested) = true;
-                    if realm.global_refs.count() != 0 {
-                        continue;
-                    }
-                };
-
-                // If there are no async tasks then shutdown the context
-                let Some(realm) = realms.remove(&id) else {
-                    continue;
-                };
-
-                let finalizer_registry = realm.finalizer_registry;
-                finalizer_registry.clear();
-                drop(finalizer_registry);
-
-                for resolver in shutdown_context_senders.remove(&id).unwrap_or_default() {
-                    let _ = resolver.try_send(());
-                }
-
-                if shutdown_requested && realms.is_empty() {
-                    for sender in shutdown_senders {
-                        let _ = sender.try_send(());
-                    }
-                    break;
-                }
             }
             JsWorkerEvent::Exec { id, callback, span } => {
                 let realm = realms.try_get(&id)?;
@@ -169,13 +140,49 @@ fn worker_thread(
                     // TODO global error handler
                     panic!("Callback errored {:?}", err)
                 };
+
+                if worker_handle_state.worker_handle_active()
+                    && worker_handle_state.context_handle_active(&id)
+                {
+                    continue;
+                }
+
+                if realm.global_refs.count() != 0 {
+                    continue;
+                }
+
+                let Some(realm) = realms.remove(&id) else {
+                    continue;
+                };
+
+                let finalizer_registry = realm.finalizer_registry;
+                finalizer_registry.clear();
+                drop(finalizer_registry);
+
+                realm.context_shutdown_sig.done();
             }
             JsWorkerEvent::BackgroundTaskComplete { id } => {
                 let realm = realms.try_get(&id)?;
-                let realm_shutdown_requested = realm.shutdown_requested.borrow();
-                if *realm_shutdown_requested && realm.global_refs.count() == 0 {
-                    tx.try_send(JsWorkerEvent::RequestContextShutdown { id, resolve: None })?;
+
+                if worker_handle_state.worker_handle_active()
+                    && worker_handle_state.context_handle_active(&id)
+                {
+                    continue;
                 }
+
+                if realm.global_refs.count() != 0 {
+                    continue;
+                }
+
+                let Some(realm) = realms.remove(&id) else {
+                    continue;
+                };
+
+                let finalizer_registry = realm.finalizer_registry;
+                finalizer_registry.clear();
+                drop(finalizer_registry);
+
+                realm.context_shutdown_sig.done();
             }
             JsWorkerEvent::Import { id, specifier } => {
                 Module::v8_initialize(
@@ -185,45 +192,102 @@ fn worker_thread(
                     std::env::current_dir()?.try_to_string()?,
                 )?;
             }
-            JsWorkerEvent::RequestShutdown { resolve } => {
-                shutdown_senders.push(resolve);
-                shutdown_requested = true;
-                if !realms.is_empty() {
-                    continue;
-                }
-
-                for sender in shutdown_senders {
-                    let _ = sender.try_send(());
-                }
-
-                break;
-            }
             JsWorkerEvent::RunGarbageCollectionForTesting { resolve } => {
                 isolate.request_garbage_collection_for_testing(v8::GarbageCollectionType::Full);
                 resolve.try_send(())?;
             }
+            JsWorkerEvent::WorkerHandleDropped => {
+                for id in realms.keys().cloned().collect::<Vec<usize>>() {
+                    let Some(realm) = realms.remove(&id) else {
+                        continue;
+                    };
+
+                    let finalizer_registry = realm.finalizer_registry;
+                    finalizer_registry.clear();
+                    drop(finalizer_registry);
+
+                    realm.context_shutdown_sig.done();
+                }
+
+                break;
+            }
+            JsWorkerEvent::WorkerHandleDeactivated => {
+                let mut to_drop = vec![];
+
+                for (id, realm) in realms.iter() {
+                    if realm.global_refs.count() != 0 {
+                        continue;
+                    }
+                    to_drop.push(id.clone());
+                }
+
+                for id in to_drop {
+                    let Some(realm) = realms.remove(&id) else {
+                        continue;
+                    };
+
+                    let finalizer_registry = realm.finalizer_registry;
+                    finalizer_registry.clear();
+                    drop(finalizer_registry);
+
+                    realm.context_shutdown_sig.done();
+                }
+            }
+            JsWorkerEvent::ContextHandleDeactivated { id } => {
+                if realms.try_get_mut(&id)?.global_refs.count() != 0 {
+                    continue;
+                }
+
+                let Some(realm) = realms.remove(&id) else {
+                    continue;
+                };
+
+                let finalizer_registry = realm.finalizer_registry;
+                finalizer_registry.clear();
+                drop(finalizer_registry);
+
+                realm.context_shutdown_sig.done();
+            }
+            JsWorkerEvent::ContextHandleDropped { id } => {
+                let Some(realm) = realms.remove(&id) else {
+                    continue;
+                };
+
+                let finalizer_registry = realm.finalizer_registry;
+                finalizer_registry.clear();
+                drop(finalizer_registry);
+
+                realm.context_shutdown_sig.done();
+            }
+        }
+
+        if !worker_handle_state.worker_handle_active() && realms.len() == 0 {
+            break;
         }
     }
+
+    worker_shutdown_sig.done();
 
     Ok(())
 }
 
 #[allow(unused)]
+#[rustfmt::skip]
 impl std::fmt::Debug for JsWorkerEvent {
     fn fmt(
         &self,
         f: &mut std::fmt::Formatter<'_>,
     ) -> std::fmt::Result {
         match self {
-            Self::CreateContext { resolve } => write!(f, "CreateContext"),
-            Self::BackgroundTaskComplete { id } => write!(f, "BackgroundTaskComplete"),
-            Self::RequestContextShutdown { id, resolve } => write!(f, "RequestContextShutdown"),
-            Self::Exec { id, callback, span } => write!(f, "Exec"),
-            Self::Import { id, specifier } => write!(f, "Import"),
-            Self::RequestShutdown { resolve } => write!(f, "RequestShutdown"),
-            Self::RunGarbageCollectionForTesting { resolve } => {
-                write!(f, "RunGarbageCollectionForTesting")
-            }
+            Self::CreateContext { resolve, context_shutdown_sig } =>        write!(f, "CreateContext"),
+            Self::Exec { id, callback, span } =>                            write!(f, "Exec                     [id={}]", id),
+            Self::BackgroundTaskComplete { id } =>                                                              write!(f, "BackgroundTaskComplete   [id={}]", id),
+            Self::Import { id, specifier } =>                                                          write!(f, "Import"),
+            Self::WorkerHandleDropped =>                                                                                write!(f, "WorkerHandleDropped"),
+            Self::WorkerHandleDeactivated =>                                                                            write!(f, "WorkerHandleDeactivated"),
+            Self::ContextHandleDropped { id } =>                                                                write!(f, "ContextHandleDropped"),
+            Self::ContextHandleDeactivated { id } =>                                                            write!(f, "ContextHandleDeactivated [id={}]", id),
+            Self::RunGarbageCollectionForTesting { resolve } =>                                            write!(f, "RunGarbageCollectionForTesting"),
         }
     }
 }

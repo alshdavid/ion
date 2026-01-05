@@ -78,5 +78,6 @@ pub fn main() -> anyhow::Result<()> {
         Ok(())
     })?;
 
+    ctx.join()?;
     Ok(())
 }

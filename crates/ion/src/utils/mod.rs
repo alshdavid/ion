@@ -1,4 +1,5 @@
 pub mod channel;
+pub mod complete_signal;
 pub mod debug;
 pub mod hash;
 pub mod hash_map_ext;

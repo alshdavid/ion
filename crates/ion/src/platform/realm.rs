@@ -1,6 +1,4 @@
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
 use std::sync::Arc;
 
 use flume::Sender;
@@ -18,6 +16,7 @@ use crate::platform::sys;
 use crate::platform::worker::JsWorkerEvent;
 use crate::utils::RefCounter;
 use crate::utils::channel::oneshot;
+use crate::utils::complete_signal::CompleteSignal;
 
 // Container that constructs a V8 context and preserves the internals until dropped
 pub struct JsRealm {
@@ -31,10 +30,10 @@ pub struct JsRealm {
     /// Used to tell the Worker if there are any long-lived async tasks
     /// that should prevent the context from being shutdown
     pub(crate) global_refs: RefCounter,
-    pub(crate) shutdown_requested: Rc<RefCell<bool>>,
     pub(crate) modules: ModuleMap,
-    pub(crate) tx: Sender<JsWorkerEvent>,
     pub(crate) global_this: sys::GlobalThis,
+    pub(crate) context_shutdown_sig: CompleteSignal,
+    pub(crate) tx: Sender<JsWorkerEvent>,
 }
 
 impl JsRealm {
@@ -45,12 +44,12 @@ impl JsRealm {
         transformers: HashMap<String, Arc<JsTransformer>>,
         background_task_manager: Arc<BackgroundTaskManager>,
         tx: Sender<JsWorkerEvent>,
+        context_shutdown_sig: CompleteSignal,
     ) -> Box<Self> {
         let context = sys::GlobalContext::new(unsafe { &mut *isolate });
         let global_this = sys::GlobalThis::new(&context);
 
         let global_refs = RefCounter::new(0);
-        let shutdown_requested = Rc::new(RefCell::new(false));
         let finalizer_registry = FinalizerRegistery::new(isolate);
 
         // TODO make these RefCells
@@ -61,7 +60,6 @@ impl JsRealm {
             context.clone(),
             Arc::clone(&background_task_manager),
             global_refs.clone(),
-            Rc::clone(&shutdown_requested),
             tx.clone(),
             finalizer_registry.clone(),
             global_this.clone(),
@@ -76,9 +74,9 @@ impl JsRealm {
             resolvers,
             transformers,
             global_refs,
-            shutdown_requested,
             finalizer_registry,
             global_this,
+            context_shutdown_sig,
             tx,
         });
 
@@ -133,7 +131,7 @@ impl JsRealm {
     ) -> crate::Result<Return> {
         let (tx, rx) = oneshot();
         self.background_task_manager.spawn(async move {
-            tx.try_send(fut.await).unwrap();
+            tx.try_send(fut.await).expect("Unable to resolve");
             Ok(())
         })?;
         rx.recv()?

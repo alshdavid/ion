@@ -16,6 +16,8 @@ use crate::JsTransformer;
 use crate::platform::background_worker::BackgroundTaskManager;
 use crate::platform::worker::JsWorkerEvent;
 use crate::platform::worker::start_js_worker_thread;
+use crate::platform::worker_handle_state::WorkerHandleState;
+use crate::utils::complete_signal::CompleteSignal;
 
 pub(crate) enum PlatformEvent {
     Init {
@@ -26,6 +28,8 @@ pub(crate) enum PlatformEvent {
         transformers: Vec<JsTransformer>,
     },
     SpawnWorker {
+        worker_shutdown_sig: CompleteSignal,
+        worker_handle_state: Arc<WorkerHandleState>,
         extensions: Vec<JsExtension>,
         resolvers: Vec<JsResolver>,
         transformers: Vec<JsTransformer>,
@@ -96,6 +100,8 @@ pub(crate) static PLATFORM: LazyLock<Sender<PlatformEvent>> = LazyLock::new(|| {
                     }
                 }
                 PlatformEvent::SpawnWorker {
+                    worker_shutdown_sig,
+                    worker_handle_state,
                     resolve,
                     extensions: init_extensions,
                     resolvers: init_resolvers,
@@ -117,6 +123,8 @@ pub(crate) static PLATFORM: LazyLock<Sender<PlatformEvent>> = LazyLock::new(|| {
                     }
 
                     let (tx, handle) = start_js_worker_thread(
+                        worker_shutdown_sig,
+                        worker_handle_state,
                         background_task_manager.clone(),
                         worker_extensions,
                         worker_resolvers,

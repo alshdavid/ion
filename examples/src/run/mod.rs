@@ -43,6 +43,7 @@ pub fn main() -> anyhow::Result<()> {
     let ctx = worker.create_context()?;
 
     ctx.import(file_path.try_to_string()?)?;
+    ctx.join()?;
 
     Ok(())
 }

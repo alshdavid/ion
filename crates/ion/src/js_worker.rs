@@ -11,7 +11,8 @@ use crate::JsExtension;
 use crate::JsResolver;
 use crate::JsTransformer;
 use crate::platform::worker::JsWorkerEvent;
-use crate::utils::channel::oneshot;
+use crate::platform::worker_handle_state::WorkerHandleState;
+use crate::utils::complete_signal::CompleteSignal;
 
 #[derive(Default)]
 pub struct JsWorkerOptions {
@@ -30,25 +31,39 @@ pub struct JsWorkerOptions {
 /// to be used to execute JavaScript
 #[derive(Debug)]
 pub struct JsWorker {
+    worker_handle_state: Arc<WorkerHandleState>,
     tx: Sender<JsWorkerEvent>,
-    handle: Mutex<Option<JoinHandle<crate::Result<()>>>>,
+    handle: Arc<Mutex<Option<JoinHandle<crate::Result<()>>>>>,
+    worker_shutdown_sig: CompleteSignal,
 }
 
 impl JsWorker {
     pub(crate) fn new(
+        worker_handle_state: Arc<WorkerHandleState>,
         tx: Sender<JsWorkerEvent>,
-        handle: Mutex<Option<JoinHandle<crate::Result<()>>>>,
+        handle: Arc<Mutex<Option<JoinHandle<crate::Result<()>>>>>,
+        worker_shutdown_sig: CompleteSignal,
     ) -> Self {
-        JsWorker { tx, handle }
+        JsWorker {
+            tx,
+            handle,
+            worker_handle_state,
+            worker_shutdown_sig,
+        }
     }
 
     /// Create a handle to a v8::Context associated with this v8::Isolate
-    pub fn create_context(&self) -> crate::Result<Arc<JsContext>> {
+    pub fn create_context(&self) -> crate::Result<JsContext> {
+        let context_shutdown_sig = CompleteSignal::default();
+
         let (tx, rx) = bounded(1);
 
         if self
             .tx
-            .send(JsWorkerEvent::CreateContext { resolve: tx })
+            .send(JsWorkerEvent::CreateContext {
+                resolve: tx,
+                context_shutdown_sig: context_shutdown_sig.clone(),
+            })
             .is_err()
         {
             return Err(Error::WorkerInitializeError);
@@ -58,7 +73,15 @@ impl JsWorker {
             return Err(Error::WorkerInitializeError);
         };
 
-        Ok(Arc::new(JsContext { id, tx }))
+        self.worker_handle_state
+            .context_handle_set_status(&id, true);
+
+        Ok(JsContext {
+            id,
+            tx,
+            worker_handle_state: Arc::clone(&self.worker_handle_state),
+            context_shutdown_sig,
+        })
     }
 
     pub fn run_garbage_collection_for_testing(&self) -> crate::Result<()> {
@@ -74,23 +97,15 @@ impl JsWorker {
 
         Ok(rx.recv()?)
     }
-}
 
-impl Drop for JsWorker {
-    fn drop(&mut self) {
-        let (tx, rx) = oneshot();
+    /// Wait for all of the contexts within the worker to complete all activity
+    pub fn join(self) -> crate::Result<()> {
+        self.worker_handle_state.worker_handle_deactivate();
+        self.tx
+            .send(JsWorkerEvent::WorkerHandleDeactivated)
+            .unwrap();
 
-        if self
-            .tx
-            .send(JsWorkerEvent::RequestShutdown { resolve: tx })
-            .is_err()
-        {
-            panic!("Cannot drop JsWorker 1");
-        };
-
-        if rx.recv().is_err() {
-            panic!("Cannot drop JsWorker 2");
-        }
+        self.worker_shutdown_sig.wait();
 
         let Ok(mut handle) = self.handle.lock() else {
             panic!("Cannot drop JsWorker 3");
@@ -99,5 +114,34 @@ impl Drop for JsWorker {
         if let Some(handle) = handle.take() {
             drop(handle.join().unwrap());
         }
+
+        Ok(())
+    }
+
+    /// Wait for all of the contexts within the worker to complete all activity
+    pub async fn join_async(self) -> crate::Result<()> {
+        self.worker_handle_state.worker_handle_deactivate();
+        self.tx
+            .send(JsWorkerEvent::WorkerHandleDeactivated)
+            .unwrap();
+
+        self.worker_shutdown_sig.wait_async().await;
+
+        let Ok(mut handle) = self.handle.lock() else {
+            panic!("Cannot drop JsWorker 3");
+        };
+
+        if let Some(handle) = handle.take() {
+            drop(handle.join().unwrap());
+        }
+
+        Ok(())
+    }
+}
+
+impl Drop for JsWorker {
+    fn drop(&mut self) {
+        self.worker_handle_state.worker_handle_deactivate();
+        drop(self.tx.try_send(JsWorkerEvent::WorkerHandleDropped));
     }
 }

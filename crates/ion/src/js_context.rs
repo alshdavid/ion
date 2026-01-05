@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use flume::Sender;
 use flume::bounded;
 
@@ -5,13 +7,16 @@ use crate::Env;
 use crate::Error;
 use crate::JsUnknown;
 use crate::platform::worker::JsWorkerEvent;
-use crate::utils::channel::oneshot;
+use crate::platform::worker_handle_state::WorkerHandleState;
+use crate::utils::complete_signal::CompleteSignal;
 
 /// This is a handle to a v8::Context
 #[derive(Debug, Clone)]
 pub struct JsContext {
+    pub(crate) worker_handle_state: Arc<WorkerHandleState>,
     pub(crate) id: usize,
     pub(crate) tx: Sender<JsWorkerEvent>,
+    pub(crate) context_shutdown_sig: CompleteSignal,
 }
 
 impl JsContext {
@@ -83,25 +88,64 @@ impl JsContext {
         let specifier = specifier.as_ref().to_string();
         self.exec_blocking(move |env| env.import(specifier))
     }
+
+    /// Wait for the context to complete all activity
+    pub fn join(self) -> crate::Result<()> {
+        if !self.worker_handle_state.worker_handle_active() {
+            return Err(crate::Error::WorkerAlreadyShutdown);
+        }
+
+        self.worker_handle_state
+            .context_handle_set_status(&self.id, false);
+
+        if self
+            .tx
+            .send(JsWorkerEvent::ContextHandleDeactivated {
+                id: self.id.clone(),
+            })
+            .is_err()
+        {
+            return Err(crate::Error::ContextAlreadyShutdown);
+        }
+
+        self.context_shutdown_sig.wait();
+
+        Ok(())
+    }
+
+    /// Wait for the context to complete all activity
+    pub async fn join_async(self) -> crate::Result<()> {
+        if !self.worker_handle_state.worker_handle_active() {
+            return Err(crate::Error::WorkerAlreadyShutdown);
+        }
+
+        self.worker_handle_state
+            .context_handle_set_status(&self.id, false);
+
+        if self
+            .tx
+            .send(JsWorkerEvent::ContextHandleDeactivated {
+                id: self.id.clone(),
+            })
+            .is_err()
+        {
+            return Err(crate::Error::ContextAlreadyShutdown);
+        }
+
+        self.context_shutdown_sig.wait_async().await;
+
+        Ok(())
+    }
 }
 
 impl Drop for JsContext {
     fn drop(&mut self) {
-        let (tx, rx) = oneshot();
+        self.worker_handle_state
+            .context_handle_set_status(&self.id, false);
 
-        if self
-            .tx
-            .send(JsWorkerEvent::RequestContextShutdown {
-                id: self.id,
-                resolve: Some(tx),
-            })
-            .is_err()
-        {
-            panic!("Cannot drop JsContext 1")
-        };
-
-        if rx.recv().is_err() {
-            panic!("Cannot drop JsContext 2")
-        }
+        drop(
+            self.tx
+                .try_send(JsWorkerEvent::ContextHandleDropped { id: self.id }),
+        );
     }
 }
