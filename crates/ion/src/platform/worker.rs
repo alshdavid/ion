@@ -49,6 +49,9 @@ pub(crate) enum JsWorkerEvent {
     ContextHandleDeactivated {
         id: usize,
     },
+    BackgroundTaskComplete {
+        id: usize,
+    },
 }
 
 // Create a dedicated thread to host the isolate
@@ -137,6 +140,29 @@ fn worker_thread(
                     // TODO global error handler
                     panic!("Callback errored {:?}", err)
                 };
+
+                if worker_handle_state.worker_handle_active()
+                    && worker_handle_state.context_handle_active(&id)
+                {
+                    continue;
+                }
+
+                if realm.global_refs.count() != 0 {
+                    continue;
+                }
+
+                let Some(realm) = realms.remove(&id) else {
+                    continue;
+                };
+
+                let finalizer_registry = realm.finalizer_registry;
+                finalizer_registry.clear();
+                drop(finalizer_registry);
+
+                realm.context_shutdown_sig.done();
+            }
+            JsWorkerEvent::BackgroundTaskComplete { id } => {
+                let realm = realms.try_get(&id)?;
 
                 if worker_handle_state.worker_handle_active()
                     && worker_handle_state.context_handle_active(&id)
@@ -253,14 +279,15 @@ impl std::fmt::Debug for JsWorkerEvent {
         f: &mut std::fmt::Formatter<'_>,
     ) -> std::fmt::Result {
         match self {
-            Self::CreateContext { resolve, context_shutdown_sig } =>         write!(f, "CreateContext"),
-            Self::Exec { id, callback, span } =>    write!(f, "Exec                     [id={}]", id),
-            Self::Import { id, specifier } =>                                  write!(f, "Import"),
-            Self::WorkerHandleDropped =>                                                        write!(f, "WorkerHandleDropped"),
-            Self::WorkerHandleDeactivated =>                                                    write!(f, "WorkerHandleDeactivated"),
-            Self::ContextHandleDropped { id } =>                                        write!(f, "ContextHandleDropped"),
-            Self::ContextHandleDeactivated { id } =>                                    write!(f, "ContextHandleDeactivated [id={}]", id),
-            Self::RunGarbageCollectionForTesting { resolve } =>                    write!(f, "RunGarbageCollectionForTesting"),
+            Self::CreateContext { resolve, context_shutdown_sig } =>        write!(f, "CreateContext"),
+            Self::Exec { id, callback, span } =>                            write!(f, "Exec                     [id={}]", id),
+            Self::BackgroundTaskComplete { id } =>                                                              write!(f, "BackgroundTaskComplete   [id={}]", id),
+            Self::Import { id, specifier } =>                                                          write!(f, "Import"),
+            Self::WorkerHandleDropped =>                                                                                write!(f, "WorkerHandleDropped"),
+            Self::WorkerHandleDeactivated =>                                                                            write!(f, "WorkerHandleDeactivated"),
+            Self::ContextHandleDropped { id } =>                                                                write!(f, "ContextHandleDropped"),
+            Self::ContextHandleDeactivated { id } =>                                                            write!(f, "ContextHandleDeactivated [id={}]", id),
+            Self::RunGarbageCollectionForTesting { resolve } =>                                            write!(f, "RunGarbageCollectionForTesting"),
         }
     }
 }
