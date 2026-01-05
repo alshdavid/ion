@@ -34,5 +34,6 @@ pub fn main() -> anyhow::Result<()> {
 
     ctx.exec_blocking(move |env| env.import(entry_point.try_to_string()?))?;
 
+    ctx.join()?;
     Ok(())
 }

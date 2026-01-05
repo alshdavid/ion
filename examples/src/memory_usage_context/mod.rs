@@ -34,7 +34,7 @@ pub fn main() -> anyhow::Result<()> {
             let ctx1 = worker.create_context()?;
 
             ctx0.eval("globalThis.value = []")?;
-            for i in 0..100 {
+            for i in 0..1 {
                 ctx0.eval(format!("globalThis.value.push({})", i))?;
             }
 
@@ -43,12 +43,12 @@ pub fn main() -> anyhow::Result<()> {
                 ctx1.eval(format!("globalThis.value.push({})", i))?;
             }
 
-            drop(ctx0);
-            drop(ctx1);
+            ctx0.join()?;
+            ctx1.join()?;
         };
 
         worker.run_garbage_collection_for_testing()?;
-        drop(worker);
+        worker.join()?;
 
         println!("{}", memu.megabytes().json());
     }

@@ -28,5 +28,7 @@ pub fn main() -> anyhow::Result<()> {
     let ctx = worker.create_context()?;
 
     ctx.eval(code)?;
+    ctx.join()?;
+
     Ok(())
 }

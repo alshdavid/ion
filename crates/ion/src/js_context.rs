@@ -95,6 +95,9 @@ impl JsContext {
             return Err(crate::Error::WorkerAlreadyShutdown);
         }
 
+        self.worker_handle_state
+            .context_handle_set_status(&self.id, false);
+
         if self
             .tx
             .send(JsWorkerEvent::ContextHandleDeactivated {
@@ -111,10 +114,13 @@ impl JsContext {
     }
 
     /// Wait for the context to complete all activity
-    pub async fn join_async(&self) -> crate::Result<()> {
+    pub async fn join_async(self) -> crate::Result<()> {
         if !self.worker_handle_state.worker_handle_active() {
             return Err(crate::Error::WorkerAlreadyShutdown);
         }
+
+        self.worker_handle_state
+            .context_handle_set_status(&self.id, false);
 
         if self
             .tx
@@ -134,6 +140,9 @@ impl JsContext {
 
 impl Drop for JsContext {
     fn drop(&mut self) {
+        self.worker_handle_state
+            .context_handle_set_status(&self.id, false);
+
         drop(
             self.tx
                 .try_send(JsWorkerEvent::ContextHandleDropped { id: self.id }),

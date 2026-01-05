@@ -30,5 +30,9 @@ pub fn main() -> anyhow::Result<()> {
     wrk2ctx1.eval("console.log('wrk2ctx1')")?;
     wrk3ctx1.eval("console.log('wrk3ctx1')")?;
 
+    wrk1ctx1.join()?;
+    wrk2ctx1.join()?;
+    wrk3ctx1.join()?;
+
     Ok(())
 }

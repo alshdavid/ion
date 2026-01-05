@@ -23,6 +23,7 @@ pub fn main() -> anyhow::Result<()> {
 
     ctx.import(&entry_point)?;
 
+    ctx.join()?;
     Ok(())
 }
 
