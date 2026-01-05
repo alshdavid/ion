@@ -1,15 +1,19 @@
+use std::sync::Arc;
+
 use flume::Sender;
 use flume::bounded;
 
 use crate::Env;
 use crate::Error;
 use crate::JsUnknown;
+use crate::platform::callback_registry::CallbackRegistry;
 use crate::platform::worker::JsWorkerEvent;
 use crate::utils::channel::oneshot;
 
 /// This is a handle to a v8::Context
 #[derive(Debug, Clone)]
 pub struct JsContext {
+    pub(crate) callback_registry: Arc<CallbackRegistry>,
     pub(crate) id: usize,
     pub(crate) tx: Sender<JsWorkerEvent>,
 }
@@ -83,25 +87,40 @@ impl JsContext {
         let specifier = specifier.as_ref().to_string();
         self.exec_blocking(move |env| env.import(specifier))
     }
-}
 
-impl Drop for JsContext {
-    fn drop(&mut self) {
+    /// Wait for the context to complete all activity
+    pub fn join_blocking(self) -> crate::Result<()> {
+        if !self.callback_registry.worker_handle_active() {
+            return Ok(());
+        }
+
+        self.callback_registry
+            .context_handle_set_status(&self.id, false);
+
         let (tx, rx) = oneshot();
+        self.callback_registry
+            .add_context_shutdown_callback(self.id.clone(), move || tx.try_send(()).unwrap());
 
-        if self
-            .tx
-            .send(JsWorkerEvent::RequestContextShutdown {
-                id: self.id,
-                resolve: Some(tx),
-            })
-            .is_err()
-        {
-            panic!("Cannot drop JsContext 1")
-        };
+        drop(self.tx.send(JsWorkerEvent::ContextHandleDeactivated {
+            id: self.id.clone(),
+        }));
 
         if rx.recv().is_err() {
             panic!("Cannot drop JsContext 2")
         }
+
+        Ok(())
+    }
+
+    /// Wait for the context to complete all activity
+    pub async fn join_async(&self) -> crate::Result<()> {
+        self.callback_registry
+            .context_handle_set_status(&self.id, false);
+        self.tx
+            .send(JsWorkerEvent::ContextHandleDropped {
+                id: self.id.clone(),
+            })
+            .unwrap();
+        Ok(())
     }
 }

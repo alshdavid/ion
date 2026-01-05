@@ -1,5 +1,6 @@
 #![allow(clippy::module_inception)]
 pub mod background_worker;
+pub(crate) mod callback_registry;
 pub(crate) mod extension;
 pub(crate) mod finalizer_registry;
 pub mod module;

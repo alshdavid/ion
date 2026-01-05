@@ -1,6 +1,4 @@
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
 use std::sync::Arc;
 
 use flume::Sender;
@@ -31,9 +29,7 @@ pub struct JsRealm {
     /// Used to tell the Worker if there are any long-lived async tasks
     /// that should prevent the context from being shutdown
     pub(crate) global_refs: RefCounter,
-    pub(crate) shutdown_requested: Rc<RefCell<bool>>,
     pub(crate) modules: ModuleMap,
-    pub(crate) tx: Sender<JsWorkerEvent>,
     pub(crate) global_this: sys::GlobalThis,
 }
 
@@ -50,7 +46,6 @@ impl JsRealm {
         let global_this = sys::GlobalThis::new(&context);
 
         let global_refs = RefCounter::new(0);
-        let shutdown_requested = Rc::new(RefCell::new(false));
         let finalizer_registry = FinalizerRegistery::new(isolate);
 
         // TODO make these RefCells
@@ -61,7 +56,6 @@ impl JsRealm {
             context.clone(),
             Arc::clone(&background_task_manager),
             global_refs.clone(),
-            Rc::clone(&shutdown_requested),
             tx.clone(),
             finalizer_registry.clone(),
             global_this.clone(),
@@ -76,10 +70,8 @@ impl JsRealm {
             resolvers,
             transformers,
             global_refs,
-            shutdown_requested,
             finalizer_registry,
             global_this,
-            tx,
         });
 
         let realm_ptr = realm.as_mut() as *mut JsRealm;
@@ -117,13 +109,11 @@ impl JsRealm {
         &self,
         fut: impl 'static + Send + Sync + Future<Output = crate::Result<()>>,
     ) -> crate::Result<()> {
-        let tx = self.tx.clone();
-        let id = self.id;
         self.background_task_manager.spawn(async move {
             if let Err(_error) = fut.await {
                 todo!("Missing global error handler")
             };
-            Ok(tx.try_send(JsWorkerEvent::BackgroundTaskComplete { id })?)
+            Ok(())
         })
     }
 

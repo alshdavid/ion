@@ -1,6 +1,4 @@
-use std::cell::RefCell;
 use std::future::Future;
-use std::rc::Rc;
 use std::sync::Arc;
 
 use flume::Sender;
@@ -27,7 +25,6 @@ pub struct Env {
     pub(crate) context: sys::GlobalContext,
     pub(crate) background_task_manager: Arc<BackgroundTaskManager>,
     pub(crate) global_refs: RefCounter,
-    pub(crate) shutdown_requested: Rc<RefCell<bool>>,
     pub(crate) tx: Sender<JsWorkerEvent>,
     pub(crate) finalizer_registry: FinalizerRegistery,
     pub(crate) global_this: sys::GlobalThis,
@@ -40,7 +37,6 @@ impl Env {
         context: sys::GlobalContext,
         background_task_manager: Arc<BackgroundTaskManager>,
         global_refs: RefCounter,
-        shutdown_requested: Rc<RefCell<bool>>,
         tx: Sender<JsWorkerEvent>,
         finalizer_registry: FinalizerRegistery,
         global_this: sys::GlobalThis,
@@ -53,7 +49,6 @@ impl Env {
             background_task_manager,
             inner: std::ptr::null_mut(),
             global_refs,
-            shutdown_requested,
             finalizer_registry,
             tx,
         });
@@ -85,19 +80,6 @@ impl Env {
 
     pub fn dec_ref(&self) {
         self.global_refs.dec();
-        let shutdown_requested = {
-            let shutdown_requested = self.shutdown_requested.borrow();
-            *shutdown_requested
-        };
-
-        if self.global_refs.count() == 0 && shutdown_requested {
-            self.tx
-                .try_send(JsWorkerEvent::RequestContextShutdown {
-                    id: self.realm_id,
-                    resolve: None,
-                })
-                .unwrap();
-        }
     }
 
     pub fn ref_count(&self) -> usize {
