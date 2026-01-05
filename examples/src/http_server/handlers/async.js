@@ -3,8 +3,8 @@ export function handler(req, res) {
     res.writeHead(200);
 
     setTimeout(() => {
-      res.write("hello");
-      res.write(" world");
-      res.end()
-    }, 1000)
-};
+        res.write("hello");
+        res.write(" world");
+        res.end();
+    }, 1000);
+}

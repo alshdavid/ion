@@ -1,8 +1,13 @@
-import { Paths } from './paths.ts'
+import { Paths } from "./paths.ts";
 
-const binName = Deno.build.os === "windows" ? "ion_examples.exe" : "ion_examples"
+const binName =
+    Deno.build.os === "windows" ? "ion_examples.exe" : "ion_examples";
 
-export async function executeExample(testName: string, args: string[] = [], env: Record<string, string> = {}): Promise<string> {
+export async function executeExample(
+    testName: string,
+    args: string[] = [],
+    env: Record<string, string> = {},
+): Promise<string> {
     const command = new Deno.Command(Paths["~/"]("target", "debug", binName), {
         args: [testName, ...args],
         stdout: "piped",
@@ -10,8 +15,8 @@ export async function executeExample(testName: string, args: string[] = [], env:
         cwd: Paths["~"],
         env: {
             ...Deno.env.toObject(),
-            ...env
-        }
+            ...env,
+        },
     });
 
     const { code, stdout, stderr } = await command.output();
@@ -19,7 +24,7 @@ export async function executeExample(testName: string, args: string[] = [], env:
     if (code !== 0) {
         const errorText = new TextDecoder().decode(stderr);
         throw new Error(
-            `Test '${testName}' failed with exit code ${code}:\n${errorText}`
+            `Test '${testName}' failed with exit code ${code}:\n${errorText}`,
         );
     }
 
@@ -30,13 +35,13 @@ export interface ExecuteExampleResult {
     stdout: ReadableStream<string>;
     done: Promise<void>;
     pid: number;
-    getMemoryUsage(): Promise<number>
+    getMemoryUsage(): Promise<number>;
 }
 
 export function executeExampleStream(
     testName: string,
     args: string[] = [],
-    env: Record<string, string> = {}
+    env: Record<string, string> = {},
 ): ExecuteExampleResult {
     const command = new Deno.Command(Paths["~/"]("target", "debug", binName), {
         args: [testName, ...args],
@@ -45,16 +50,16 @@ export function executeExampleStream(
         cwd: Paths["~"],
         env: {
             ...Deno.env.toObject(),
-            ...env
-        }
+            ...env,
+        },
     });
 
     const child = command.spawn();
 
-    const done = child.status.then(status => {
+    const done = child.status.then((status) => {
         if (status.code !== 0) {
             throw new Error(
-                `Test '${testName}' failed with exit code ${status.code}`
+                `Test '${testName}' failed with exit code ${status.code}`,
             );
         }
     });
@@ -84,7 +89,7 @@ export function executeExampleStream(
                     controller.enqueue(trimmed);
                 }
             }
-        }
+        },
     });
 
     return {
@@ -103,7 +108,7 @@ export function executeExampleStream(
                 const output = new TextDecoder().decode(stdout);
                 const match = output.match(/"([0-9,]+) K"/);
                 if (match) {
-                    return parseInt(match[1].replace(/,/g, '')) / 1024;
+                    return parseInt(match[1].replace(/,/g, "")) / 1024;
                 }
             } else {
                 const command = new Deno.Command("ps", {
@@ -115,6 +120,6 @@ export function executeExampleStream(
                 return parseInt(output) / 1024;
             }
             throw new Error("Could not get process memory");
-        }
+        },
     };
 }

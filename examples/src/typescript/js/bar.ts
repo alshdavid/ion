@@ -1,3 +1,3 @@
 export type Bar = string;
 export type Foo = string;
-export const bar: Bar = "bar"
+export const bar: Bar = "bar";

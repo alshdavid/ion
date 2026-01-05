@@ -1,11 +1,20 @@
 use std::sync::Arc;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
 
 use memory_stats::memory_stats;
 use parking_lot::Mutex;
 use serde::Serialize;
 
+static COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+fn get_sample() -> usize {
+    COUNTER.fetch_add(1, Ordering::SeqCst)
+}
+
 #[derive(Debug, Serialize)]
 pub struct MemoryUsageReport {
+    pub sample: usize,
     pub units: String,
     pub value: isize,
     pub change: isize,
@@ -37,6 +46,7 @@ impl MemoryUsageCounter {
         (*previous) = current;
 
         MemoryUsageReport {
+            sample: get_sample(),
             units: "mb".to_string(),
             value: current,
             change,
@@ -58,6 +68,7 @@ impl MemoryUsageCounter {
         (*previous) = current;
 
         MemoryUsageReport {
+            sample: get_sample(),
             units: "kb".to_string(),
             value: current,
             change,

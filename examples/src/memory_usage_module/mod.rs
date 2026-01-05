@@ -4,7 +4,7 @@ use crate::_utils::memory_usage::MemoryUsageCounter;
 
 pub fn main() -> anyhow::Result<()> {
     let memu = MemoryUsageCounter::default();
-    println!("{}", memu.megabytes().json());
+    println!("{}", memu.kilobytes().json());
 
     let runtime = JsRuntime::initialize_once(JsRuntimeOptions::debug(JsRuntimeOptions {
         transformers: vec![
@@ -23,11 +23,11 @@ pub fn main() -> anyhow::Result<()> {
         ..Default::default()
     }))?;
 
-    println!("{}", memu.megabytes().json());
+    println!("{}", memu.kilobytes().json());
 
     let worker = runtime.spawn_worker(JsWorkerOptions::default())?;
 
-    for _ in 2..50 {
+    for _ in 2..100 {
         let ctx = worker.create_context()?;
 
         for _ in 2..1000 {
@@ -38,7 +38,7 @@ pub fn main() -> anyhow::Result<()> {
         }
 
         worker.run_garbage_collection_for_testing()?;
-        println!("{}", memu.megabytes().json());
+        println!("{}", memu.kilobytes().json());
     }
 
     Ok(())

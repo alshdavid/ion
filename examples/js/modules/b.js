@@ -1,3 +1,3 @@
-export * from './c.js'
+export * from "./c.js";
 
-export const b = 'b'
+export const b = "b";

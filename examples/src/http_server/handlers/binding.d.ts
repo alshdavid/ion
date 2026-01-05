@@ -1,16 +1,16 @@
-export type HandlerFunc = (req: Request, res: Response) => any | Promise<any>
+export type HandlerFunc = (req: Request, res: Response) => any | Promise<any>;
 
 export interface Request {
     body: Reader;
 }
 
 export interface Response extends Writer, Ender {
-    headers(): Headers
-    writeHead(status: number): Promise<void>
+    headers(): Headers;
+    writeHead(status: number): Promise<void>;
 }
 
 export interface Headers {
-    set(header: string, value: string): void
+    set(header: string, value: string): void;
 }
 
 export interface Reader {
@@ -36,9 +36,12 @@ export interface Writer extends Ender {
 }
 
 export interface Ender {
-    end(): Promise<void>
+    end(): Promise<void>;
 }
 
 declare global {
-    var setTimeout: (callback: () => any | Promise<any>, duration?: number) => number;
+    var setTimeout: (
+        callback: () => any | Promise<any>,
+        duration?: number,
+    ) => number;
 }

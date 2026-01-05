@@ -6,7 +6,7 @@
             "../../../crates/ion/src/extensions/set_interval/binding.d.ts",
             "../../../crates/ion/src/extensions/set_timeout/binding.d.ts",
             "../../../crates/ion/src/extensions/global_this/binding.d.ts",
-            "../../../crates/ion/src/extensions/test/binding.d.ts",
+            "../../../crates/ion/src/extensions/test/binding.d.ts"
         ],
         "module": "ESNext",
         "checkJs": true,

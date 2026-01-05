@@ -13,13 +13,13 @@ pub fn main() -> anyhow::Result<()> {
 
     let worker = runtime.spawn_worker(JsWorkerOptions::default())?;
 
-    for _ in 0..10 {
+    for _ in 0..100 {
         worker.run_garbage_collection_for_testing()?;
 
         let ctx = worker.create_context()?;
         println!("{}", memu.kilobytes().json());
 
-        for _ in 0..100 {
+        for _ in 0..10 {
             println!("{}", memu.kilobytes().json());
             let data = blob_100kb();
 
