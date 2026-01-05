@@ -1,14 +1,15 @@
-#![deny(unused_crate_dependencies)]
+// #![deny(unused_crate_dependencies)]
 mod _utils;
 mod background_tasks;
 mod basic;
+mod basic_join;
 mod context_multiplexing;
 mod custom_extension;
 mod custom_resolver;
 mod deferred;
 mod eval;
 mod external_value;
-mod http_server;
+// mod http_server;
 mod memory_usage_context;
 mod memory_usage_external_value;
 mod memory_usage_module;
@@ -34,11 +35,12 @@ fn main() -> anyhow::Result<()> {
 
     match example.as_str() {
         "basic" => basic::main(),
+        "basic_join" => basic_join::main(),
         "custom_extension" => custom_extension::main(),
         "custom_resolver" => custom_resolver::main(),
         "deferred" => deferred::main(),
         "eval" => eval::main(),
-        "http_server" => http_server::main(),
+        // "http_server" => http_server::main(),
         "promise" => promise::main(),
         "run" => run::main(),
         "set_interval" => set_interval::main(),

@@ -35,6 +35,7 @@ impl CallbackRegistry {
         self.worker_handle_active.swap(false, Ordering::Relaxed);
     }
 
+    #[allow(dead_code)]
     pub(crate) fn context_handle_active(
         &self,
         id: &usize,
