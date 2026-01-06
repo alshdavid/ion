@@ -10,13 +10,6 @@ workspace = true
 ion = { path = "../crates/ion" }
 anyhow.workspace = true
 tokio.workspace = true
-http.workspace = true
-http-body-util.workspace = true
-hyper.workspace = true
-hyper-util.workspace = true
-futures.workspace = true
-tokio-util.workspace = true
-num_cpus.workspace = true
 memory-stats.workspace = true
 normalize-path.workspace = true
 parking_lot.workspace = true
